@@ -309,6 +309,13 @@ ok "Launch bundle: logcat filtered (song gone, address masked, GPM kept)" "[ -f 
 rm -f "$W/bin/logcat"; mkdir -p "$W/nokr/bin"; cp "$A/bin/collect.sh" "$W/nokr/bin/"; mkdir -p "$ROOT/storage/usb1"
 (cd "$W/nokr" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb1" >/dev/null 2>&1)
 ok "no filter found: nothing collected, the reason written to the stick" "[ -f $ROOT/storage/usb1/EV6_LOG_FAILED.txt ] && ! ls -d $ROOT/storage/usb1/EV6_LOG_up* >/dev/null 2>&1"
+echo "== 24 4.11.1 lighter logging: Wi-Fi snapshots in memory (no files), daemon.log capped"
+newcar t24; netif rtwlan1 12 usb; Q=$ROOT/proc/net/rtl88x2bu/wlan0; mkdir -p "$Q"; echo "rssi:-40" > "$Q/rx_signal"; echo "sta 02:00:00:00:bb:02 tx_rate 866" > "$Q/all_sta_info"
+TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD/wq"; echo old > "$TD/wq/0"; echo "11-16 DROP: test" > "$TD/drop.req"
+runsvc >/dev/null 2>&1; DF=$(ls $TD/drop_*.log 2>/dev/null | head -1)
+ok "Wi-Fi snapshot reaches the drop log from memory, no snapshot files, old 4.10 folder removed" "grep -q 'xx:xx:xx:xx:bb:02 tx_rate 866' \"$DF\" && [ ! -d $TD/wq ]"
+export LOG_MAX=100; runsvc >/dev/null 2>&1; unset LOG_MAX
+ok "daemon.log past LOG_MAX while running: earlier part kept as daemon.old.log, new daemon.log small and says so" "[ -s $TD/daemon.old.log ] && grep -q 'reached [0-9]* bytes, the earlier part kept as daemon.old.log' $TD/daemon.log && [ \$(wc -c < $TD/daemon.log) -lt 200 ]"
 echo "== 13 Launch with a USB stick: status + log bundle on the stick"
 newcar t13; mkdir -p "$ROOT/storage/usb0"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/status.sh 2>&1); sleep 2

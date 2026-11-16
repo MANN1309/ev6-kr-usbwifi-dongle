@@ -25,7 +25,7 @@ USB 메모리
 ```
 [package.N]
 path=packages/usbwifi.hotspot.zip
-name=USB WiFi dongle as built-in Wi-Fi (KR v4.11)
+name=USB WiFi dongle as built-in Wi-Fi (KR v4.11.1)
 short-desc=Driver, wlan0, AA keep-connected, no popups, safe drop logs
 published=2026-11-16
 ```

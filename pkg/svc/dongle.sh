@@ -425,18 +425,20 @@ usb_report() {
 #    aa-keep (inside the AA app) writes $T/drop.req the moment a connected Android Auto ends. Within a second we save
 #    what the car's logs hold of that moment (logcat ring buffers reach back about a minute, so it can't wait for a USB
 #    stick) to $T/drop_<date>.log, newest DROPS_KEEP kept; copy_logs then puts them on the stick like the other logs.
-#    The Wi-Fi state of the last minute comes from a small ring of driver snapshots taken every 5 s.
+#    The Wi-Fi state of the last minute comes from a small ring of driver snapshots taken every 5 s (kept in memory).
 DROPS_KEEP=${DROPS_KEEP:-8}
+# 4.10 kept the ring in files under $T/wq: remove what an older version left
+[ -d "$T/wq" ] && { rm -f "$T"/wq/* 2>/dev/null; rmdir "$T/wq" 2>/dev/null; }
 WQ_N=12
 wq_i=0; wq_at=-999
+# 4.11.1: the ring lives in shell variables (wq_0 .. wq_11), not in files: no flash write every 5 s
 wifi_sample() {
     [ $((up - wq_at)) -ge 5 ] || return 0
     wq_at=$up
     _any=
     for _d in "$PROC"/net/rtl88x2bu/*; do [ -f "$_d/all_sta_info" ] && _any=1; done
     [ -n "$_any" ] || return 0
-    mkdir -p "$T/wq" 2>/dev/null
-    {
+    _v=$(
         echo "--- $(date) uptime ${up}s"
         for _d in "$PROC"/net/rtl88x2bu/*; do
             [ -f "$_d/all_sta_info" ] || continue
@@ -444,8 +446,29 @@ wifi_sample() {
             echo "[${_d##*/}] all_sta_info:"; cat "$_d/all_sta_info" 2>/dev/null
         done
         grep "wlan0:" "$PROC/net/dev" 2>/dev/null
-    } > "$T/wq/$wq_i" 2>/dev/null
+    )
+    eval "wq_$wq_i=\$_v"
     wq_i=$(( (wq_i + 1) % WQ_N ))
+}
+wifi_ring() {
+    _k=0; _j=$wq_i
+    while [ $_k -lt $WQ_N ]; do
+        eval "_v=\${wq_$_j:-}"
+        [ -n "$_v" ] && echo "$_v"
+        _j=$(( (_j + 1) % WQ_N )); _k=$((_k + 1))
+    done
+}
+# 4.11.1: daemon.log is capped while running: past LOG_MAX it becomes daemon.old.log (one old copy kept; at start the
+# previous run's log is daemon.prev.log as before). All go to the stick.
+LOG_MAX=${LOG_MAX:-262144}
+trim_at=-999
+log_trim() {
+    [ $((up - trim_at)) -ge ${TRIM_EVERY:-60} ] || return 0
+    trim_at=$up
+    [ -f "$LOG" ] || return 0
+    _sz=$(wc -c < "$LOG" 2>/dev/null); _sz=$((${_sz:-0} + 0))
+    [ "$_sz" -gt "$LOG_MAX" ] || return 0
+    mv -f "$LOG" "$T/daemon.old.log" 2>/dev/null && vlog "log: daemon.log reached ${_sz} bytes, the earlier part kept as daemon.old.log"
 }
 # the lines that usually tell why a session ended (stock AA app, Bluetooth, Wi-Fi, crashes, the dongle), at most 80
 cause_lines() {
@@ -477,11 +500,7 @@ drop_check() {
         cause_lines "$_f.km"
         echo
         echo "== Wi-Fi from the dongle driver, the last minute (every 5 s, oldest first)"
-        _k=0; _j=$wq_i
-        while [ $_k -lt $WQ_N ]; do
-            [ -f "$T/wq/$_j" ] && cat "$T/wq/$_j"
-            _j=$(( (_j + 1) % WQ_N )); _k=$((_k + 1))
-        done
+        wifi_ring
         echo
         echo "== logcat (main, system, events, radio): about the last minute before the drop"
         cat "$_f.lc"
@@ -539,6 +558,7 @@ while true; do
     usb_report
     wifi_sample
     drop_check
+    log_trim
     if [ ! -f "$NOACCEL" ]; then
         if [ $now = wlan0 ] && [ $in_grace = 1 ]; then
             [ $grace_told = 0 ] && { vlog "boot: KP is waiting up to 90 s for a stock hotspot this car does not have: ending the wait"; grace_told=1; }
