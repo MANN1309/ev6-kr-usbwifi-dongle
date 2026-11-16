@@ -1,0 +1,64 @@
+==============================================================
+ 설치 방법: USB를 열었을 때 NEMESIS.data 와 packages 가 바로 보이면
+            차에 꽂고 NEMESIS에서 설치 -> 헤드유닛 재시작. 끝.
+ 삭제 방법: NEMESIS Manager -> USB WiFi dongle as built-in Wi-Fi
+            -> 삭제 -> 헤드유닛 재시작
+ 업데이트 : 오류가 확인되면 수정 중이며, 수정이 끝나면 GitHub
+            Releases의 최신 파일(Latest)에 반영됩니다. 최신 파일로
+            같은 방법으로 설치하면 업데이트됩니다.
+            https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases/latest
+==============================================================
+
+EV6 KR USB Wi-Fi 동글 시스템 4.11.0 - 설치 USB
+
+[중요] 면책 고지
+비공식 개인 프로젝트입니다. 현대자동차·기아·현대모비스와 관계없습니다.
+설치·사용·삭제로 차량, 헤드유닛, 보증(A/S), 데이터에 생기는 모든 문제의 책임은
+사용자 본인에게 있습니다. 동의하지 않으면 설치하지 마세요. (설명서/1_면책고지.txt)
+
+1. USB에 넣는 방법
+   압축을 풀면 나오는 EV6-dongle-USB-v4.11.0 폴더 "안의 내용 전부"를
+   USB 메모리(FAT32 또는 exFAT) 맨 위에 그대로 복사합니다.
+   USB를 열었을 때 바로 NEMESIS.data 와 packages 가 보여야 합니다. (폴더째 넣으면 NEMESIS가 찾지 못함)
+   USB 맨 위가 아래처럼 보이면 됩니다.
+
+     USB 메모리
+     ├── NEMESIS.data                 (NEMESIS가 읽는 목록, 이름 바꾸지 마세요)
+     ├── packages
+     │   └── usbwifi.hotspot.zip      (설치 파일, 압축을 풀지 마세요)
+     ├── 먼저_읽어주세요.txt
+     └── 설명서
+
+   이미 NEMESIS USB를 쓰고 있다면 (예: Korea Projection용):
+   - usbwifi.hotspot.zip 을 기존 packages 폴더에 넣고,
+   - 기존 NEMESIS.data 를 덮어쓰지 말고, 맨 끝에 아래 4줄 묶음을 추가합니다.
+     [package.N] 의 N은 기존 마지막 번호 + 1 로 바꿉니다.
+
+     [package.N]
+     path=packages/usbwifi.hotspot.zip
+     name=USB WiFi dongle as built-in Wi-Fi (KR v4.11)
+     short-desc=Driver, wlan0, AA keep-connected, no popups, safe drop logs
+     published=2026-11-16
+
+2. 설치 전에 확인
+   - 차량: 기아 EV6 국내형, 펌웨어 CVEV.KOR.0000.V039.001.260902, 내장 Wi-Fi 없음
+   - 먼저 설치되어 있어야 하는 것 (순서대로):
+     1) NEMESIS (패키지를 설치·실행·삭제하는 기반)
+        https://xwtk.cloud/services/nemesis/
+     2) HMG-API 코어 1.0.2 (모드가 차 기능을 바꿀 수 있게 하는 공통 플랫폼)
+        https://github.com/Open-HMG/HMG-API  (설치 방법: 위키 Installing-HMG-API)
+     3) Korea Projection 1.7.2 (동글로 핫스팟을 켜고 무선 안드로이드 오토 연결)
+        https://github.com/StopDragon/korea-projection/releases/tag/v1.7.2
+     4) 이 패키지 (동글 드라이버, 차 Wi-Fi로 맞춤, 연결 유지, 알림 숨김, 끊김 기록)
+   - 동글: 설명서/3_지원동글.txt
+
+3. 설치와 연결: 설명서/2_설치와연결.txt
+
+읽는 순서: 이 파일 -> 1_면책고지 -> 2_설치와연결 -> 3_지원동글 -> 4_라이선스와출처
+라이선스: 스크립트·모드 AGPL-3.0(+추가 조건), 드라이버 GPL-2.0. 가져가서 발전시키는 것은 자유,
+상업적 이용(판매, 유료 설치 대행)은 하지 말아 주세요 (설명서/6_포크와상업이용.txt).
+ 소스: GitHub 저장소 (설명서/4_라이선스와출처.txt)
+
+왜 새로 만들었나
+타 시스템 방식은 차량 시스템의 핵심 파일(시스템 라이브러리)을 직접 고쳐야 해서 위험했습니다.
+이 패키지는 /system 의 파일을 고치지 않는 안전한 방법으로 같은 기능을 만든 것입니다.

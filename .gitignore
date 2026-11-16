@@ -1,0 +1,9 @@
+.DS_Store
+build/
+keys/
+*.key
+hmgapi_mod/mod/pk/META-HMGAPI/
+hmgapi_mod/mod/pk/hooks.jar
+pkg/mod/package.zip
+*.zip
+logs/
