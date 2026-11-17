@@ -9,6 +9,15 @@ MODS=${MODS:-${ROOT:-}/proc/modules}
 SRCV=${SRCV:-${ROOT:-}/sys/module/88x2bu/srcversion}
 # the bundled 88x2bu build (GPL-2.0, source in source/driver): blocks usbfs while bound, survives a surprise unplug
 DRV_SRCVERSION=46A9CFB83C8F6E0C09E8AAC
+# 4.12: the bundled driver was built for this kernel (car: "Linux version 3.18.24-tcc (...) #1 SMP PREEMPT ...").
+# Other EV6 KR firmware may install now; on a different kernel the driver is not loaded at all (no crash risk).
+KERNEL_WANT=3.18.24-tcc
+kernel_ok() {
+    kv=; read -r kv < "$PROC/version" 2>/dev/null
+    [ -n "$kv" ] || return 0        # no /proc/version (off-car): insmod's own version check still applies
+    case "$kv" in *" $KERNEL_WANT "*"SMP PREEMPT"*) return 0 ;; esac
+    return 1
+}
 KO_ARGS='ifname=rtwlan%d if2name=rtwlan%d rtw_country_code=KR rtw_power_mgnt=0 rtw_ips_mode=0 rtw_enusbss=0 rtw_en_napi=0 rtw_en_gro=0 rtw_usbfs_block=1'
 PROC=${PROC:-${ROOT:-}/proc}
 KPW=${KPW:-${ROOT:-}/data/local/tmp/korea.projection}          # Korea Projection's work folder (dnsmasq.pid, ap.log)

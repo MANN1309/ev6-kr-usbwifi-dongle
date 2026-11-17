@@ -523,10 +523,18 @@ drop_check() {
 
 nb_since=0; resets=0; last_reset=0; nr_since=0; dh_since=0; as_since=0; radio_tries=0; had_wlan=0
 drv_ok=0; chip_ok=0; was=; seen_up=0; plug_up=0; ev_host=0; ev_aa=0; kick2=0; tl_end=0
-load_driver && drv_ok=1
+if kernel_ok; then
+    load_driver && drv_ok=1
+else
+    # 4.12: firmware other than the tested one, with another kernel: no driver, no chip mark (KP would wait for a
+    # Wi-Fi that can't come); logs and USB copies still work
+    drv_ok=no; chip_ok=no
+    _k3=$(set -- $kv; echo "$1 $2 $3")
+    vlog "FAIL: this firmware's kernel is not the one the bundled driver was built for ($KERNEL_WANT SMP PREEMPT): driver not loaded, Wi-Fi chip not marked. Kernel: $_k3"
+fi
 while true; do
-    [ $drv_ok = 1 ] || { load_driver && drv_ok=1; }
-    [ $chip_ok = 1 ] || { mark_chip && chip_ok=1; }
+    [ $drv_ok != 0 ] || { load_driver && drv_ok=1; }
+    [ $chip_ok != 0 ] || { mark_chip && chip_ok=1; }
     name_wlan0
     copy_logs
     if [ -d "$SYSNET/wlan0" ]; then now=wlan0; else now=none; fi

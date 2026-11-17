@@ -316,6 +316,14 @@ runsvc >/dev/null 2>&1; DF=$(ls $TD/drop_*.log 2>/dev/null | head -1)
 ok "Wi-Fi snapshot reaches the drop log from memory, no snapshot files, old 4.10 folder removed" "grep -q 'xx:xx:xx:xx:bb:02 tx_rate 866' \"$DF\" && [ ! -d $TD/wq ]"
 export LOG_MAX=100; runsvc >/dev/null 2>&1; unset LOG_MAX
 ok "daemon.log past LOG_MAX while running: earlier part kept as daemon.old.log, new daemon.log small and says so" "[ -s $TD/daemon.old.log ] && grep -q 'reached [0-9]* bytes, the earlier part kept as daemon.old.log' $TD/daemon.log && [ \$(wc -c < $TD/daemon.log) -lt 200 ]"
+echo "== 25 4.12 other EV6 KR firmware: the driver loads only on its own kernel"
+newcar t25; echo "Linux version 3.18.24-tcc (b@h) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Jan 1 2025" > "$ROOT/proc/version"; runsvc >/dev/null 2>&1
+ok "car's kernel: driver loaded as before" "[ -f $ROOT/insmod.calls ] && ! grep -q 'FAIL: this firmware' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
+newcar t25b; echo "Linux version 4.14.98-tcc (b@h) (gcc version 6.3 (GCC) ) #1 SMP PREEMPT Wed Jan 1 2025" > "$ROOT/proc/version"
+out=$(cd "$A" && KR_TEST_PATH=$W/bin:$PATH sh scripts/post.sh 2>&1); runsvc >/dev/null 2>&1; runsvc >/dev/null 2>&1
+ok "other kernel: no insmod, no chip mark, reason logged with the kernel version" "[ ! -f $ROOT/insmod.calls ] && [ ! -f $ROOT/data/hmgapi/public/wifi-chip ] && grep -q 'FAIL: this firmware.*Kernel: Linux version 4.14.98-tcc' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
+ok "other kernel: install warns, status says so" "echo \"\$out\" | grep -q 'driver will NOT load' && (cd $A && KR_TEST_PATH=$W/bin:\$PATH USBS=/none sh bin/status.sh) | grep -q 'kernel is not supported'"
+ok "descriptor: any EV6 KR firmware (CVEV.KOR*)" "grep -q '^os=\"CVEV.KOR[*]\"' $P/NEMESIS.data"
 echo "== 13 Launch with a USB stick: status + log bundle on the stick"
 newcar t13; mkdir -p "$ROOT/storage/usb0"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/status.sh 2>&1); sleep 2

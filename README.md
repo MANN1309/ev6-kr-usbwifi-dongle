@@ -3,7 +3,7 @@
 > ⚠️ **[면책 고지](DISCLAIMER.md)를 먼저 읽어 주세요.**
 > 비공식 개인 프로젝트입니다. **설치·사용으로 차량에 생기는 모든 문제의 책임은 사용자 본인에게 있습니다.**
 
-**현재 버전: 4.11.1** (NEMESIS 패키지 id `usbwifi.hotspot`)
+**현재 버전: 4.12.0** (NEMESIS 패키지 id `usbwifi.hotspot`)
 
 > 💡 **설치만 하실 분은 [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases/latest)의 `EV6-dongle-USB-v버전.zip` 하나만 받으면 됩니다.** 저장소의 나머지 폴더는 소스 코드입니다.
 
@@ -65,12 +65,12 @@
 | 1 | NEMESIS | 헤드유닛에 패키지를 설치·실행·삭제할 수 있게 해 주는 기반 (패키지 관리자) | [공식 사이트](https://xwtk.cloud/services/nemesis/) · [GitHub](https://github.com/xwtk/hmg_nemesis) | 차에 설치된 판 |
 | 2 | HMG-API 코어 | 여러 모드가 차 시스템 기능을 바꿀 수 있게 해 주는 공통 플랫폼. 이 패키지의 연결 유지·알림 숨김 모드가 이 위에서 동작 | [GitHub](https://github.com/Open-HMG/HMG-API) · [설치 방법](https://github.com/Open-HMG/HMG-API/wiki/Installing-HMG-API) · [1.0.2](https://github.com/Open-HMG/HMG-API/releases/tag/v1.0.2) | 1.0.2 |
 | 3 | Korea Projection | 동글로 핫스팟을 켜고 무선 안드로이드 오토 연결을 맡음 | [GitHub](https://github.com/StopDragon/korea-projection) · [1.7.2](https://github.com/StopDragon/korea-projection/releases/tag/v1.7.2) | 1.7.2 (그 뒤 판은 시험 전) |
-| 4 | 이 패키지 | 동글 드라이버를 올리고 동글을 차의 Wi-Fi(wlan0)로 맞춤, 연결 유지, 알림 숨김, 끊김 기록 | [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases) | 4.11.1 |
+| 4 | 이 패키지 | 동글 드라이버를 올리고 동글을 차의 Wi-Fi(wlan0)로 맞춤, 연결 유지, 알림 숨김, 끊김 기록 | [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases) | 4.12.0 |
 
 ## 내려받기와 USB 만들기 (간단히)
-1. [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases)에서 **`EV6-dongle-USB-v4.11.1.zip`** 하나만 받습니다.
+1. [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases)에서 **`EV6-dongle-USB-v4.12.0.zip`** 하나만 받습니다.
    (초록색 **Code → Download ZIP**은 소스 코드라서 설치용이 아닙니다.)
-2. 압축을 풀면 `EV6-dongle-USB-v4.11.1` 폴더가 나옵니다. **그 폴더 안의 내용 전부**를 USB 맨 위에 복사합니다.
+2. 압축을 풀면 `EV6-dongle-USB-v4.12.0` 폴더가 나옵니다. **그 폴더 안의 내용 전부**를 USB 맨 위에 복사합니다.
    USB를 열었을 때 바로 `NEMESIS.data` 와 `packages` 가 보여야 합니다. (폴더째 넣으면 NEMESIS가 찾지 못합니다)
 3. 차에 꽂고 NEMESIS Manager에서 설치 → [설치와 연결 방법](docs/설치와연결.md) 3단계부터.
 
@@ -86,7 +86,7 @@
 ## 지원 범위
 | 항목 | 조건 |
 |---|---|
-| 차량 | 기아 EV6 국내형, 헤드유닛 펌웨어 **CVEV.KOR.0000.V039.001.260902** 만 (다른 버전은 설치되지 않음) |
+| 차량 | 기아 EV6 국내형 펌웨어(`CVEV.KOR…`)에 설치됩니다. **실차 확인은 CVEV.KOR.0000.V039.001.260902**. 커널이 다른 펌웨어에서는 드라이버를 올리지 않고 상태 화면에 "kernel is not supported"로 알려 줍니다 |
 | 대상 | **내장 Wi-Fi 칩이 없는 차** (내장 Wi-Fi가 있는 차는 이 패키지가 필요 없음) |
 | 필요한 것 | NEMESIS, HMG-API 코어 1.0.2 이상, Korea Projection 1.7.2 (각 공식 배포처에서 설치) |
 | 동글 | [지원 동글 목록](docs/지원동글.md) — 실차 확인은 TP-Link Archer T3U Nano 하나 |

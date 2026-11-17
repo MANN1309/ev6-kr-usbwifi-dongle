@@ -13,6 +13,7 @@ if grep -q "^88x2bu " "$MODS" 2>/dev/null; then
     [ "$_sv" = "$DRV_SRCVERSION" ] || echo "the previous dongle driver is still loaded: RESTART the head unit so the new driver and wlan0 are used"
 fi
 [ -d "${ROOT:-}/data/hmgapi" ] || echo "WARNING: HMG-API isn't installed: Korea Projection needs it"
+kernel_ok || echo "WARNING: this firmware's kernel is not $KERNEL_WANT: the dongle driver will NOT load and the dongle won't work as Wi-Fi. Uninstall is recommended."
 
 MODID=ev6-kr-aa-keep
 OLDPKG=hmgapi.$MODID

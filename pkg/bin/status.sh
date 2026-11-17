@@ -9,6 +9,7 @@ if [ -d "$_P" ]; then cd "$_P"; else cd "${0%/*}/.." 2>/dev/null; fi
 . ./kr/common.sh
 _sv=; [ -r "$SRCV" ] && read -r _sv < "$SRCV"
 case $_sv in "$DRV_SRCVERSION") d="bundled driver loaded" ;; "") d="driver NOT loaded" ;; *) d="old driver loaded (restart needed)" ;; esac
+kernel_ok || d="driver NOT loaded: this firmware's kernel is not supported (needs $KERNEL_WANT)"
 [ -d "$SYSNET/wlan0" ] && w="wlan0 present" || w="no wlan0 (dongle?)"
 [ -f "$CHIP" ] && c="chip mark yes" || c="chip mark NO"
 echo "USB Wi-Fi v4: $d, $w, $c, hotspot signal sys.kp.aa_ap=$(getprop sys.kp.aa_ap)"
