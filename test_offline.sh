@@ -298,11 +298,13 @@ printf '#!/bin/bash\necho "11-15 15:24:57.100  1000  1100 I AAProjection: GalCon
 printf '#!/bin/bash\necho "<6>[  620.1] rtl88x2bu 4-1:1.0: something"\n' > "$W/bin/dmesg"; chmod +x "$W/bin/logcat" "$W/bin/dmesg"
 newcar t26; netif rtwlan1 12 usb; Q=$ROOT/proc/net/rtl88x2bu/wlan0; mkdir -p "$Q"; echo "rssi:-35" > "$Q/rx_signal"; echo "sta 02:00:00:00:aa:01 tx_rate 433" > "$Q/all_sta_info"
 mkdir -p "$ROOT/data/misc/bluedroid"; echo '<N1 Tag="Name" Type="string">Tablet Kay</N1>' > "$ROOT/data/misc/bluedroid/bt_config.xml"
+mkdir -p "$ROOT/proc/net"; printf 'Tcp: RtoAlgorithm InSegs RetransSegs InErrs InCsumErrors\nTcp: 1 500 7 3 2\n' > "$ROOT/proc/net/snmp"
 TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD"; echo "11-15 15:24:59 DROP: Android Auto ended while connected (status 6 -> 0, mode 0) after 578 s" > "$TD/drop.req"
 runsvc >/dev/null 2>&1; DF=$(ls $TD/drop_*.log 2>/dev/null | head -1)
 ok "drop file saved, request taken" "[ -s \"$DF\" ] && [ ! -f $TD/drop.req ] && grep -q 'drop: Android Auto ended.*saved to drop_' $TD/daemon.log"
 ok "drop file: why, likely cause (Ping TimeOut picked out), Wi-Fi of the last minute, logcat, kernel" "grep -q '== Android Auto drop: 11-15 15:24:59 DROP' \"$DF\" && sed -n '/likely cause/,/Wi-Fi from/p' \"$DF\" | grep -q 'Ping TimeOut' && ! sed -n '/likely cause/,/Wi-Fi from/p' \"$DF\" | grep -q 'song tick' && grep -q 'tx_rate 433' \"$DF\" && grep -q 'rtl88x2bu 4-1' \"$DF\""
 ok "4.13.2 phone names: every line naming the phone left out (from the log's own name lines and the car's pairing list)" "! grep -q -e 'Mina Phone' -e 'Tablet Kay' \"$DF\" && grep -q 'Ping TimeOut' \"$DF\""
+ok "4.14.0 drop file and its daemon.log line carry the kernel's TCP error counters" "grep -q '^== kernel tcp RetransSegs=7 InErrs=3 InCsumErrors=2' \"$DF\" && cat $TD/daemon.prev.log $TD/daemon.log 2>/dev/null | grep -q 'saved to drop_.*InCsumErrors=2'"
 ok "no temp files left" "! ls $TD/drop_*.lc $TD/drop_*.km $TD/drop_*.raw >/dev/null 2>&1"
 ok "4.11 privacy: song line (and 4.13.2: 4 phone-name lines) left out, address shows only its last 2 bytes, filter line at the end" "! grep -q 'song tick' \"$DF\" && ! grep -q '02:00:00:00:aa:01' \"$DF\" && grep -q 'xx:xx:xx:xx:aa:01 tx_rate 433' \"$DF\" && grep -q '^== privacy filter (usbwifi.hotspot): 5 lines' \"$DF\""
 for i in 1 2 3 4 5 6 7 8 9; do echo old > "$TD/drop_0101_00000$i.log"; done; echo "again" > "$TD/drop.req"

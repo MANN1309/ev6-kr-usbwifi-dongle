@@ -51,6 +51,7 @@ toast "로그를 복사하는 중... USB를 빼지 마세요"
     for f in "$d"/*:*; do [ -d "$f" ] || continue; x=$(readlink "$f/driver" 2>/dev/null); echo "   ${f##*/} driver=${x##*/}"; done
   done
   echo; echo "== modules"; cat /proc/modules
+  echo; echo "== kernel $(tcp_errs)"
   echo; echo "== 88x2bu srcversion: $(cat /sys/module/88x2bu/srcversion 2>/dev/null)  (bundled = 46A9CFB83C8F6E0C09E8AAC)"
   echo; echo "== chip mark: $(ls -l /data/hmgapi/public/wifi-chip 2>&1)"
   echo; echo "== our dongle service (dongle.sh) and KP processes"

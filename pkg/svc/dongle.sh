@@ -477,6 +477,7 @@ drop_check() {
         echo "== Android Auto drop: ${_why:-?}"
         echo "== saved $(date), uptime $(uptime_s)s, by usbwifi.hotspot $(grep "^package-version=" "$APPS/NEMESIS.data" 2>/dev/null)"
         echo "== hotspot: wlan0 $([ -d "$SYSNET/wlan0" ] && echo present || echo MISSING), KP hostapd $(kp_pids "hostapd-kp[.]conf"), AA signal sys.kp.aa_ap=$(getprop sys.kp.aa_ap)"
+        echo "== kernel $(tcp_errs) (InCsumErrors: damaged TCP data the kernel caught and had sent again)"
         echo
         echo "== likely cause: lines of the logs below that usually tell why a session ended (oldest first)"
         cause_lines "$_f.lc"
@@ -496,7 +497,7 @@ drop_check() {
     scrub_file "$_f.raw" "$_f.log" 2>/dev/null
     rm -f "$_f.lc" "$_f.km" "$_f.raw"
     chmod 644 "$_f.log" 2>/dev/null
-    vlog "drop: Android Auto ended (${_why:-?}): logs of that moment saved to ${_f##*/}.log ($(lines_of "$_f.log") lines)"
+    vlog "drop: Android Auto ended (${_why:-?}): logs of that moment saved to ${_f##*/}.log ($(lines_of "$_f.log") lines), $(tcp_errs)"
     # keep the newest DROPS_KEEP (names sort by date)
     _n=0; for _x in "$T"/drop_*.log; do [ -f "$_x" ] && _n=$((_n + 1)); done
     for _x in "$T"/drop_*.log; do

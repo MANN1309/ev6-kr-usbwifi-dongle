@@ -49,6 +49,22 @@ priv_drop() {
         -e " name=" -e "name: " -e "name = " -e "remote name" -e mName -e deviceName -e friendlyName -e "device name" -e alias -e ssid -e passphrase -e psk= -e password \
         -e "+82" -e "01[016789]-[0-9][0-9][0-9]" -e "3[3-8][.][0-9][0-9][0-9][0-9].*1[23][0-9][.][0-9][0-9][0-9][0-9]" "$1" 2>/dev/null
 }
+# 4.14.0: the kernel's TCP error counters (/proc/net/snmp): InCsumErrors counts damaged TCP segments the kernel
+# dropped (TCP sends them again). The bundled driver no longer lets the chip vouch for checksums (patch 0004), so
+# data damaged on the way in now shows up here instead of breaking Android Auto ("bad record mac").
+tcp_errs() {
+    _th=; _tv=
+    while IFS= read -r _tl; do
+        case "$_tl" in "Tcp: "[A-Z]*) _th=$_tl ;; "Tcp: "[0-9-]*) _tv=$_tl ;; esac
+    done 2>/dev/null < "$PROC/net/snmp"
+    [ -n "$_th" ] && [ -n "$_tv" ] || { echo "tcp counters ?"; return 0; }
+    set -- $_tv; _te=
+    for _tn in $_th; do
+        case "$_tn" in InErrs|InCsumErrors|RetransSegs) _te="$_te $_tn=$1" ;; esac
+        shift
+    done
+    echo "tcp${_te:- counters ?}"
+}
 # 4.13.1: the car has no wc (2026-11-20 logs: "( bytes)", filter counts always 0): count lines with grep
 lines_of() { _lc=$(grep -c "" "$1" 2>/dev/null); echo "${_lc:-0}"; }
 # a USB stick is really mounted there (the /storage/usbN folders exist without a stick)
