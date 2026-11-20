@@ -5,19 +5,34 @@
 # 연락처·통화기록·재생곡·위치·전화번호·기기 이름·Wi-Fi 이름과 비밀번호 줄은 빼고, 블루투스/Wi-Fi 주소는 끝 2바이트만 남긴다.
 export PATH=${KR_TEST_PATH:+$KR_TEST_PATH:}/data/nemesis/bin:/sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
 U=${1:?usage: collect.sh <USB folder>}
+# 4.13.1: the user pressed Launch = agreed to the copy. The car shows what happens (toast): copying / done / failed.
+O=
+toast() {
+    am broadcast -a com.hkmc.intent.action.TOAST -e com.hkmc.intent.extra.TOAST_MESSAGE "$1" >/dev/null 2>&1
+    _tr=$?; [ -n "$O" ] && echo "$(date) toast rc=$_tr: $1" >> "$O/00_steps.txt"
+}
 # the privacy filter: without it nothing is collected (status.sh starts us in the package folder)
 [ -f ./kr/common.sh ] && . ./kr/common.sh
-command -v scrub_file >/dev/null 2>&1 || { echo "$(date) privacy filter (kr/common.sh) not found in $PWD: nothing collected" | tee "$U/EV6_LOG_FAILED.txt"; exit 1; }
-W=${ROOT:-}/data/local/tmp/usbwifi_hotspot/collect.tmp; mkdir -p "${W%/*}" 2>/dev/null
-sc() { scrub_file "$1" "$2" 2>> "$E"; }   # filtered copy
+command -v scrub_file >/dev/null 2>&1 || { echo "$(date) privacy filter (kr/common.sh) not found in $PWD: nothing collected" > "$U/EV6_LOG_FAILED.txt"; toast "로그 복사 실패: 패키지 파일이 없습니다 (다시 설치해 주세요)"; exit 1; }
+# one copy at a time (Launch pressed twice)
+K=$T/collect.lock
+if [ -f "$K" ]; then
+    _kp=; read -r _kp < "$K" 2>/dev/null
+    [ -n "$_kp" ] && [ -d "$PROC/$_kp" ] && { toast "이미 로그를 복사하는 중입니다. 끝날 때까지 USB를 빼지 마세요"; exit 0; }
+fi
+mkdir -p "$T" 2>/dev/null; echo $$ > "$K"
+W=$T/collect.tmp
+sc() { scrub_file "$1" "$2" 2>> "$E" && nfiles=$((nfiles + 1)); }   # filtered copy
 sx() { "$@" > "$W" 2>> "$E"; }            # command output to the work file, then sc "$W" <out>
+nfiles=0
 read -r UP _ < /proc/uptime
 UP=${UP%%.*}
+mkdir -p "$U/EV6_LOG_up$UP" 2>/dev/null || { rm -f "$K"; toast "로그 복사 실패: USB에 쓸 수 없습니다 (USB를 다시 꽂아 주세요)"; echo "USB에 쓸 수 없음"; exit 1; }
 O="$U/EV6_LOG_up$UP"
-mkdir -p "$O" || { echo "USB에 쓸 수 없음"; exit 1; }
 E="$O/00_errors.txt"
 step() { echo "$(date) $*" >> "$O/00_steps.txt"; }
-step "start (uptime ${UP}s)"
+step "start (uptime ${UP}s), by usbwifi.hotspot $(grep "^package-version=" "$APPS/NEMESIS.data" 2>/dev/null)"
+toast "로그를 복사하는 중... USB를 빼지 마세요"
 {
   echo "date: $(date)"; echo "uptime: $UP"
   echo "product: $(getprop ro.build.product)"
@@ -47,10 +62,15 @@ step "start (uptime ${UP}s)"
 step "state done"
 # 동글 서비스 로그와 NEMESIS 서비스 출력(스크립트 오류가 여기에 남음)
 mkdir -p "$O/dongle" "$O/nemesis_logs"
-for f in /data/local/tmp/usbwifi_hotspot/*; do
+for f in "$T"/*; do
   [ -f "$f" ] || continue
-  case "${f##*/}" in *.conf) continue ;; esac   # 예전 판의 hostapd 설정(비밀번호)은 가져오지 않음
-  sc "$f" "$O/dongle/${f##*/}"
+  case "${f##*/}" in *.conf|*.lock|*.tmp) continue ;; esac   # 예전 판의 hostapd 설정(비밀번호)은 가져오지 않음
+  # 4.13.1: 끊김 기록(drop_*.log)은 저장할 때 이미 필터를 거침: 그대로 복사 (다시 거르면 몇 분 걸림)
+  if grep -q "^== privacy filter (usbwifi.hotspot)" "$f" 2>/dev/null; then
+    cat "$f" > "$O/dongle/${f##*/}" 2>> "$E" && nfiles=$((nfiles + 1))
+  else
+    sc "$f" "$O/dongle/${f##*/}"
+  fi
 done
 for d in /data/nemesis/logs/*; do
   [ -d "$d" ] || continue
@@ -83,6 +103,7 @@ sx logcat -d -b system -v threadtime; sc "$W" "$O/04_logcat_system.txt"
 rm -f "$W"
 step "dmesg/logcat done"
 sync
-step "end"
-am broadcast -a com.hkmc.intent.action.TOAST -e com.hkmc.intent.extra.TOAST_MESSAGE "EV6 로그 수집 끝: USB를 빼도 됩니다" >/dev/null 2>&1
+step "end: $nfiles files"
+rm -f "$K"
+toast "로그 복사를 완료하였습니다 ($nfiles개). USB를 빼셔도 됩니다"
 exit 0

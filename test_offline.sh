@@ -8,7 +8,7 @@ ok() { if eval "$2"; then echo "PASS $1"; pass=$((pass+1)); else echo "FAIL $1";
 echo "== 0 syntax"
 for f in svc/dongle.sh scripts/post.sh scripts/preun.sh bin/status.sh bin/collect.sh kr/common.sh kr/log.sh kr/modgate.sh; do
   for sh in dash ksh bash; do command -v $sh >/dev/null || continue; ok "$sh -n $f" "$sh -n $P/$f"; done
-  ok "no forbidden tools in $f" "! grep -v '^[[:space:]]*#' $P/$f | grep -Eq '(^|[|;&(\`]|\$\()[[:space:]]*(od|tail|head|tr|printf|md5sum|dirname|basename)( |\$)'"
+  ok "no forbidden tools in $f" "! grep -v '^[[:space:]]*#' $P/$f | grep -Eq '(^|[|;&(\`]|\$\()[[:space:]]*(od|tail|head|tr|printf|md5sum|dirname|basename|wc|stat|sed|awk|cut)( |\$)'"
 done
 mkbin() {
   mkdir -p "$W/bin"
@@ -44,7 +44,7 @@ ok "insmod with KR + usbfs block" "grep -q 'rtw_country_code=KR.*rtw_usbfs_block
 ok "chip mark made, ours" "[ -f $ROOT/data/hmgapi/public/wifi-chip ] && [ -f $ROOT/data/nemesis/usbwifi-v4.chip-ours ]"
 ok "rtwlan1 (usb) renamed, placeholder kept" "[ -d $SYSNET/wlan0 ] && [ -d $SYSNET/rtwlan0 ] && [ ! -d $SYSNET/rtwlan1 ]"
 ok "log says present" "grep -q 'dongle present as wlan0' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
-ok "logs copied to USB once" "[ -s \$(ls $ROOT/storage/usb0/usbwifi_hotspot_log/up*/daemon.log | head -1) ] && [ \$(grep -c 'logs copied' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log) = 1 ]"
+ok "4.13.1: a plugged-in stick gets nothing by itself (copy only on Launch)" "[ ! -d $ROOT/storage/usb0/usbwifi_hotspot_log ] && ! grep -q 'logs copied' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
 ok "status.sh runs from any folder and reports" "out=\$(cd / && KR_TEST_PATH=$W/bin:\$PATH sh $A/bin/status.sh 2>&1); echo \"\$out\" | grep -q 'bundled driver loaded, wlan0 present, chip mark yes'"
 ok "status.sh also with relative start" "out=\$(cd $A/bin && KR_TEST_PATH=$W/bin:\$PATH sh status.sh 2>&1); echo \"\$out\" | grep -q 'wlan0 present'"
 echo "== 2 no dongle yet: only placeholder, nothing renamed"
@@ -206,12 +206,24 @@ ok "KP's boot wait end logged with the hotspot's state" "grep -q \"watch: KP's 9
 kill $HK; rm -rf "$ROOT/proc/$HK"; sleep 0.8
 ok "hotspot ended while wlan0 stayed: logged with run time, AA signal, KP's last line" "grep -q 'watch: hotspot hostapd $HK (started by KP) ENDED after .*wlan0 still-here, AA signal 1, KP last: 11-13 18:27:19' $LOGF"
 kill $SVC $KM $KF 2>/dev/null; for f in "$ROOT"/proc/[0-9]*; do kill ${f##*/} 2>/dev/null; done; wait 2>/dev/null
-echo "== 19 log copy waits until the stick is really mounted, checks sizes"
-newcar t19; netif rtwlan1 12 usb; mkdir -p "$ROOT/data/local/tmp/usbwifi_hotspot"; echo "line from before" > "$ROOT/data/local/tmp/usbwifi_hotspot/aakeep.log"
-echo "/dev/block/vold/179:1 /storage/sdcard vfat rw 0 0" > "$ROOT/proc/mounts"; runsvc >/dev/null 2>&1; LOGF=$ROOT/data/local/tmp/usbwifi_hotspot/daemon.log
-ok "stick folder there but not mounted: nothing copied" "! grep -q 'logs copied' $LOGF && [ ! -d $ROOT/storage/usb0/usbwifi_hotspot_log ]"
-echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" >> "$ROOT/proc/mounts"; runsvc >/dev/null 2>&1
-ok "mounted: copied with a file count, sizes checked, no temp files left" "grep -q 'logs copied to /storage/usb0/usbwifi_hotspot_log/up[0-9]*_1 ([0-9]* files)' $LOGF && grep -q 'line from before' $ROOT/storage/usb0/usbwifi_hotspot_log/up*_1/aakeep.log && ! ls $ROOT/storage/usb0/usbwifi_hotspot_log/.*.tmp >/dev/null 2>&1"
+echo "== 19 4.13.1 Launch copies only to a stick that is really mounted, with car messages"
+newcar t19; mkdir -p "$ROOT/data/local/tmp/usbwifi_hotspot"; echo "line from before" > "$ROOT/data/local/tmp/usbwifi_hotspot/aakeep.log"
+printf '#!/bin/bash\necho "$*" >> "$ROOT/am.calls"\n' > "$W/bin/am"; chmod +x "$W/bin/am"
+echo "/dev/block/vold/179:1 /storage/sdcard vfat rw 0 0" > "$ROOT/proc/mounts"
+out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/status.sh 2>&1); sleep 1
+ok "folder there but no stick mounted: nothing copied, says so" "! ls -d $ROOT/storage/usb0/EV6_LOG_up* >/dev/null 2>&1 && echo \"\$out\" | grep -q 'USB가 꽂혀 있지 않아'"
+echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" >> "$ROOT/proc/mounts"
+out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/status.sh 2>&1); sleep 2; LB=$(ls -d $ROOT/storage/usb0/EV6_LOG_up* 2>/dev/null | head -1)
+ok "Launch: says copying, then the car shows copying... and done (you can pull the stick)" "echo \"\$out\" | grep -q '로그를 복사하는 중' && grep -q '로그를 복사하는 중... USB를 빼지 마세요' $ROOT/am.calls && grep -q '로그 복사를 완료하였습니다 ([0-9]*개). USB를 빼셔도 됩니다' $ROOT/am.calls"
+ok "copied files counted, toasts logged, lock removed" "grep -q 'end: [1-9][0-9]* files' $LB/00_steps.txt && grep -q 'toast rc=0' $LB/00_steps.txt && [ ! -f $ROOT/data/local/tmp/usbwifi_hotspot/collect.lock ]"
+sleep 300 & LK=$!; mkdir -p "$ROOT/proc/$LK"; echo $LK > "$ROOT/data/local/tmp/usbwifi_hotspot/collect.lock"; : > $ROOT/am.calls
+(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb0" >/dev/null 2>&1)
+ok "Launch pressed again while copying: says so, no second copy" "grep -q '이미 로그를 복사하는 중' $ROOT/am.calls && ! grep -q '완료' $ROOT/am.calls"
+kill $LK 2>/dev/null; rm -f "$ROOT/data/local/tmp/usbwifi_hotspot/collect.lock"
+mkdir -p "$ROOT/storage/usbro"; chmod 555 "$ROOT/storage/usbro"; : > $ROOT/am.calls
+(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usbro" >/dev/null 2>&1)
+ok "stick not writable: the car says copy failed" "grep -q '로그 복사 실패: USB에 쓸 수 없습니다' $ROOT/am.calls"
+chmod 755 "$ROOT/storage/usbro"
 echo "== 20 this car: KP's waits run as a forked shell (sh) in nanosleep - ended; its permission task and log readers kept"
 newcar t20; netif rtwlan1 12 usb; mkdir -p "$ROOT/data/nemesis/logs/korea.projection" "$ROOT/props" "$ROOT/data/local/tmp/korea.projection" "$ROOT/data/misc/wifi"; echo "20.0 0.0" > "$ROOT/proc/uptime"
 echo 'interface=wlan0' > "$ROOT/data/misc/wifi/hostapd-kp.conf"
@@ -294,16 +306,18 @@ ok "4.11 privacy: song line left out, address shows only its last 2 bytes, filte
 for i in 1 2 3 4 5 6 7 8 9; do echo old > "$TD/drop_0101_00000$i.log"; done; echo "again" > "$TD/drop.req"
 runsvc >/dev/null 2>&1; runsvc >/dev/null 2>&1
 ok "newest 8 kept (oldest removed, the new ones there)" "[ \$(ls $TD/drop_*.log | wc -l) -eq 8 ] && [ ! -f $TD/drop_0101_000001.log ] && [ -f \"$DF\" ]"
-ok "drop files go to the USB stick with the other logs" "ls $ROOT/storage/usb0/usbwifi_hotspot_log/up*/\$(basename \"$DF\") >/dev/null 2>&1"
+ok "drop log line gives a real size (4.13.1: no wc on the car)" "cat $TD/daemon.prev.log $TD/daemon.log 2>/dev/null | grep -q 'saved to drop_.*([1-9][0-9]* lines)'"
 ok "no request: nothing saved" "n=\$(ls $TD/drop_*.log | wc -l); runsvc >/dev/null 2>&1; [ \$(ls $TD/drop_*.log | wc -l) = \$n ]"
 rm -f "$W/bin/logcat" "$W/bin/dmesg"
 echo "== 23 4.11 privacy filter: USB copies and the Launch bundle carry no personal data"
 newcar t23; netif rtwlan1 12 usb; TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD" "$ROOT/storage/usb0"
 { echo "aa-keep: phone 0A:1B:2C:3D:12:E4 on Bluetooth"; echo "BluetoothContactsProvider: add Hong"; echo "CoNA: tel 010-1234-5678"; echo "keep: step 1 START"; } > "$TD/aakeep.log"
-echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" > "$ROOT/proc/mounts"; runsvc >/dev/null 2>&1; runsvc >/dev/null 2>&1
-CF=$(ls $ROOT/storage/usb0/usbwifi_hotspot_log/up*/aakeep.log 2>/dev/null | head -1)
+echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" > "$ROOT/proc/mounts"; runsvc >/dev/null 2>&1
+echo "== privacy filter (usbwifi.hotspot): 0 lines with personal data left out" > "$TD/drop_1120_190522.log"
+(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb0" >/dev/null 2>&1)
+CF=$(ls $ROOT/storage/usb0/EV6_LOG_up*/dongle/aakeep.log 2>/dev/null | head -1)
 ok "USB copy: contacts and phone number lines left out, address masked, other lines kept" "[ -f \"$CF\" ] && ! grep -q -e Hong -e 010-1234 -e 0A:1B:2C:3D:12:E4 \"$CF\" && grep -q 'phone xx:xx:xx:xx:12:E4 on Bluetooth' \"$CF\" && grep -q 'keep: step 1 START' \"$CF\" && grep -q 'privacy filter.*: 2 lines' \"$CF\""
-ok "USB copy logged as copied (no write problem)" "grep -q 'logs copied to /storage/usb0/usbwifi_hotspot_log/up' $TD/daemon.log && ! grep -q 'FAIL: logs copied' $TD/daemon.log"
+ok "already-filtered drop log copied as it is (not filtered twice)" "[ \$(grep -c 'privacy filter' \$(ls $ROOT/storage/usb0/EV6_LOG_up*/dongle/drop_1120_190522.log | head -1)) = 1 ]"
 printf '#!/bin/bash\necho "11-16 10:00:00.000 1 2 I BTA_BT_PLAYER_MANAGER: artist=A title=B"\necho "11-16 10:00:01.000 1 2 I HKMC_GPM: status 6 phone 0A:1B:2C:3D:12:E4"\n' > "$W/bin/logcat"; chmod +x "$W/bin/logcat"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/collect.sh "$ROOT/storage/usb0" 2>&1); LB=$(ls -d $ROOT/storage/usb0/EV6_LOG_up* 2>/dev/null | head -1)
 ok "Launch bundle: logcat filtered (song gone, address masked, GPM kept)" "[ -f \"$LB/03_logcat.txt\" ] && ! grep -q artist \"$LB/03_logcat.txt\" && grep -q 'status 6 phone xx:xx:xx:xx:12:E4' \"$LB/03_logcat.txt\" && grep -q '^== privacy filter' \"$LB/01_state.txt\""
@@ -315,8 +329,8 @@ newcar t24; netif rtwlan1 12 usb; Q=$ROOT/proc/net/rtl88x2bu/wlan0; mkdir -p "$Q
 TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD/wq"; echo old > "$TD/wq/0"; echo "11-16 DROP: test" > "$TD/drop.req"
 runsvc >/dev/null 2>&1; DF=$(ls $TD/drop_*.log 2>/dev/null | head -1)
 ok "Wi-Fi snapshot reaches the drop log from memory, no snapshot files, old 4.10 folder removed" "grep -q 'xx:xx:xx:xx:bb:02 tx_rate 866' \"$DF\" && [ ! -d $TD/wq ]"
-export LOG_MAX=100; runsvc >/dev/null 2>&1; unset LOG_MAX
-ok "daemon.log past LOG_MAX while running: earlier part kept as daemon.old.log, new daemon.log small and says so" "[ -s $TD/daemon.old.log ] && grep -q 'reached [0-9]* bytes, the earlier part kept as daemon.old.log' $TD/daemon.log && [ \$(wc -c < $TD/daemon.log) -lt 200 ]"
+export LOG_MAX_LINES=2; runsvc >/dev/null 2>&1; unset LOG_MAX_LINES
+ok "daemon.log past LOG_MAX_LINES while running: earlier part kept as daemon.old.log, new daemon.log small and says so" "[ -s $TD/daemon.old.log ] && grep -q 'reached [1-9][0-9]* lines, the earlier part kept as daemon.old.log' $TD/daemon.log && [ \$(wc -l < $TD/daemon.log) -lt 3 ]"
 echo "== 25 4.12 other EV6 KR firmware: the driver loads only on its own kernel"
 newcar t25; echo "Linux version 3.18.24-tcc (b@h) (gcc version 4.7 (GCC) ) #1 SMP PREEMPT Wed Jan 1 2025" > "$ROOT/proc/version"; runsvc >/dev/null 2>&1
 ok "car's kernel: driver loaded as before" "[ -f $ROOT/insmod.calls ] && ! grep -q 'FAIL: this firmware' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
@@ -350,6 +364,6 @@ ok "every 8851bu insmod option is checked by the driver build (unknown options m
 echo "== 13 Launch with a USB stick: status + log bundle on the stick"
 newcar t13; mkdir -p "$ROOT/storage/usb0"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/status.sh 2>&1); sleep 2
-ok "status line + saving message" "echo \"\$out\" | grep -q 'USB Wi-Fi v4' && echo \"\$out\" | grep -q 'EV6_LOG'"
+ok "status line + copying message" "echo \"\$out\" | grep -q 'USB Wi-Fi v4' && echo \"\$out\" | grep -q 'EV6_LOG'"
 ok "bundle folder with the state file on the stick" "ls -d $ROOT/storage/usb0/EV6_LOG_up* >/dev/null 2>&1 && [ -f \$(ls -d $ROOT/storage/usb0/EV6_LOG_up* | head -1)/01_state.txt ]"
 echo; echo "passed $pass, failed $fail"; [ $fail = 0 ]

@@ -1,5 +1,5 @@
 # usbwifi.hotspot v4 (KR, for Korea Projection): shared settings. Every path can be moved with ROOT (off-car tests).
-# Shell rules for this head unit: no od/tail/head/tr/printf/md5sum; must pass dash/ksh/bash -n.
+# Shell rules for this head unit: no od/tail/head/tr/printf/md5sum/wc (Android 4.4 toolbox, no busybox); must pass dash/ksh/bash -n.
 APPS=${ROOT:-}/data/nemesis/apps/usbwifi.hotspot
 [ -d "$APPS" ] || APPS=${ROOT:-}/data/nemesis/packages/usbwifi.hotspot
 T=${ROOT:-}/data/local/tmp/usbwifi_hotspot          # logs (aa-keep writes aakeep.log here too)
@@ -49,8 +49,13 @@ priv_drop() {
         -e " name=" -e mName -e deviceName -e friendlyName -e "device name" -e alias -e ssid -e passphrase -e psk= -e password \
         -e "+82" -e "01[016789]-[0-9][0-9][0-9]" -e "3[3-8][.][0-9][0-9][0-9][0-9].*1[23][0-9][.][0-9][0-9][0-9][0-9]" "$1" 2>/dev/null
 }
+# 4.13.1: the car has no wc (2026-11-20 logs: "( bytes)", filter counts always 0): count lines with grep
+lines_of() { _lc=$(grep -c "" "$1" 2>/dev/null); echo "${_lc:-0}"; }
+# a USB stick is really mounted there (the /storage/usbN folders exist without a stick)
+usb_mounted() { [ -f "$PROC/mounts" ] || return 0; grep -q " $1 " "$PROC/mounts" 2>/dev/null; }
+USBS=${USBS:-/storage/usb0 /storage/usb1 /storage/usb2}
 scrub_file() {
-    _sa=0; [ -f "$1" ] && _sa=$(wc -l < "$1" 2>/dev/null)
+    _sa=0; [ -f "$1" ] && _sa=$(lines_of "$1")
     priv_drop "$1" | while IFS= read -r _sl; do
         case "$_sl" in
             *[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]*)
@@ -59,7 +64,7 @@ scrub_file() {
         echo "$_sl"
     done > "$2"
     _sr=$?
-    _sb=$(wc -l < "$2" 2>/dev/null)
+    _sb=$(lines_of "$2")
     echo "== privacy filter (usbwifi.hotspot): $((${_sa:-0} - ${_sb:-0})) lines with personal data left out, addresses show only the last 2 bytes" >> "$2"
     return $_sr
 }

@@ -73,54 +73,8 @@ name_wlan0() {
     return 1
 }
 
-# any USB stick plugged in: copy our logs (and aa-keep's) to <stick>/usbwifi_hotspot_log once per plug-in.
-# 2026-11-14: the stick came back with 0-byte files: copy only once the stick is really mounted (in /proc/mounts) and has
-# settled for 3 s, write to a temp name, move, sync, and check the size; every result (or failure) is logged.
-USBS=${USBS:-/storage/usb0 /storage/usb1 /storage/usb2}
-usb_seen=
-usb_first=
-copy_n=0
-mounted() { [ -f "$PROC/mounts" ] || return 0; grep -q " $1 " "$PROC/mounts" 2>/dev/null; }
-copy_logs() {
-    _now=
-    for _u in $USBS; do
-        [ -d "${ROOT:-}$_u" ] || continue
-        mounted "$_u" || continue
-        _now="$_now $_u"
-        case " $usb_seen " in *" $_u "*) continue ;; esac
-        _up=$(uptime_s)
-        case " $usb_first " in
-            *" $_u="*) _f0=${usb_first#*" $_u="}; _f0=${_f0%% *} ;;
-            *) usb_first="$usb_first $_u=$_up "; _f0=$_up ;;
-        esac
-        [ $((_up - _f0)) -ge ${USB_SETTLE:-3} ] || { _now=${_now% $_u}; continue; }
-        # 2026-11-14 17:27: on the stick, writing over the old files and renaming failed ("(write)", .tmp files left):
-        # each copy now goes to a new folder usbwifi_hotspot_log/up<uptime>_<n> (new files only, no rename)
-        _o="${ROOT:-}$_u/usbwifi_hotspot_log/up${_up}_$((copy_n + 1))"
-        mkdir -p "$_o" 2>/dev/null || { vlog "FAIL: logs not copied: can't make $_o"; continue; }
-        copy_n=$((copy_n + 1))
-        _n=0; _bad=
-        for _f in "$T"/*.log; do
-            [ -f "$_f" ] || continue
-            _b=${_f##*/}
-            # 4.11: copies go through the privacy filter (kr/common.sh scrub_file); the filter's last line proves the write
-            if scrub_file "$_f" "$_o/$_b" 2>/dev/null && grep -q "^== privacy filter" "$_o/$_b" 2>/dev/null; then _n=$((_n + 1))
-            else _bad="$_bad $_b(write)"; fi
-        done
-        dmesg > "$T/dmesg.tmp" 2>/dev/null && scrub_file "$T/dmesg.tmp" "$_o/dmesg.txt" 2>/dev/null; rm -f "$T/dmesg.tmp"
-        sync
-        if [ -z "$_bad" ]; then vlog "logs copied to ${_o#${ROOT:-}} ($_n files)"
-        else vlog "FAIL: logs copied to ${_o#${ROOT:-}} with problems:$_bad"; fi
-    done
-    usb_seen=$_now
-    # forget the first-seen time of sticks that were pulled out
-    _keep=
-    for _w in $usb_first; do
-        _wu=${_w%%=*}
-        [ -d "${ROOT:-}$_wu" ] && _keep="$_keep $_w "
-    done
-    usb_first=$_keep
-}
+# 4.13.1: no copying when a USB stick is plugged in (it wrote to any stick without asking, and the 1+ minute copy
+# held up this watch loop). Logs go to the stick only when the user presses Launch (bin/status.sh -> bin/collect.sh).
 
 uptime_s() {
     _u=0
@@ -454,7 +408,7 @@ usb_report() {
 # 4) 4.10 (2026-11-15 15:24: Android Auto dropped for 3 s while driving and no log had the cause, the recorder was off):
 #    aa-keep (inside the AA app) writes $T/drop.req the moment a connected Android Auto ends. Within a second we save
 #    what the car's logs hold of that moment (logcat ring buffers reach back about a minute, so it can't wait for a USB
-#    stick) to $T/drop_<date>.log, newest DROPS_KEEP kept; copy_logs then puts them on the stick like the other logs.
+#    stick) to $T/drop_<date>.log, newest DROPS_KEEP kept; Launch (bin/collect.sh) puts them on the stick.
 #    The Wi-Fi state of the last minute comes from a small ring of driver snapshots taken every 5 s (kept in memory).
 DROPS_KEEP=${DROPS_KEEP:-8}
 # 4.10 kept the ring in files under $T/wq: remove what an older version left
@@ -488,17 +442,17 @@ wifi_ring() {
         _j=$(( (_j + 1) % WQ_N )); _k=$((_k + 1))
     done
 }
-# 4.11.1: daemon.log is capped while running: past LOG_MAX it becomes daemon.old.log (one old copy kept; at start the
-# previous run's log is daemon.prev.log as before). All go to the stick.
-LOG_MAX=${LOG_MAX:-262144}
+# 4.11.1: daemon.log is capped while running: past LOG_MAX_LINES it becomes daemon.old.log (one old copy kept; at start
+# the previous run's log is daemon.prev.log as before). 4.13.1: counted in lines (the car has no wc; ~100 bytes a line).
+LOG_MAX_LINES=${LOG_MAX_LINES:-2500}
 trim_at=-999
 log_trim() {
     [ $((up - trim_at)) -ge ${TRIM_EVERY:-60} ] || return 0
     trim_at=$up
     [ -f "$LOG" ] || return 0
-    _sz=$(wc -c < "$LOG" 2>/dev/null); _sz=$((${_sz:-0} + 0))
-    [ "$_sz" -gt "$LOG_MAX" ] || return 0
-    mv -f "$LOG" "$T/daemon.old.log" 2>/dev/null && vlog "log: daemon.log reached ${_sz} bytes, the earlier part kept as daemon.old.log"
+    _sz=$(lines_of "$LOG")
+    [ "$_sz" -gt "$LOG_MAX_LINES" ] || return 0
+    mv -f "$LOG" "$T/daemon.old.log" 2>/dev/null && vlog "log: daemon.log reached ${_sz} lines, the earlier part kept as daemon.old.log"
 }
 # the lines that usually tell why a session ended (stock AA app, Bluetooth, Wi-Fi, crashes, the dongle), at most 80
 cause_lines() {
@@ -542,7 +496,7 @@ drop_check() {
     scrub_file "$_f.raw" "$_f.log" 2>/dev/null
     rm -f "$_f.lc" "$_f.km" "$_f.raw"
     chmod 644 "$_f.log" 2>/dev/null
-    vlog "drop: Android Auto ended (${_why:-?}): logs of that moment saved to ${_f##*/}.log ($(wc -c < "$_f.log" 2>/dev/null) bytes)"
+    vlog "drop: Android Auto ended (${_why:-?}): logs of that moment saved to ${_f##*/}.log ($(lines_of "$_f.log") lines)"
     # keep the newest DROPS_KEEP (names sort by date)
     _n=0; for _x in "$T"/drop_*.log; do [ -f "$_x" ] && _n=$((_n + 1)); done
     for _x in "$T"/drop_*.log; do
@@ -572,7 +526,6 @@ while true; do
     [ $chip_ok != 0 ] || { mark_chip && chip_ok=1; }
     [ $drv_ok = no ] || load_8851
     name_wlan0
-    copy_logs
     if [ -d "$SYSNET/wlan0" ]; then now=wlan0; else now=none; fi
     up=$(uptime_s)
     if [ "$now" != "$was" ]; then

@@ -15,11 +15,16 @@ kernel_ok || d="driver NOT loaded: this firmware's kernel is not supported (need
 if grep -q "^8851bu " "$MODS" 2>/dev/null; then d="$d; RTL8851BU experimental driver loaded"
 elif [ -f "$EXP8851_OFF" ]; then d="$d; RTL8851BU experimental driver switched off"; fi
 echo "USB Wi-Fi v4: $d, $w, $c, hotspot signal sys.kp.aa_ap=$(getprop sys.kp.aa_ap)"
-# a USB stick is plugged in: save a full log bundle there (in the background; a toast says when it is done)
-for _u in ${USBS:-/storage/usb0 /storage/usb1 /storage/usb2}; do
+# 4.13.1: pressing Launch = copy the logs to the USB stick (only then; nothing is copied when a stick is plugged in).
+# collect.sh runs in the background and shows the car's messages: copying... / done, you can pull the stick / failed.
+_got=
+for _u in $USBS; do
     [ -d "${ROOT:-}$_u" ] || continue
+    usb_mounted "$_u" || continue
     sh ./bin/collect.sh "${ROOT:-}$_u" </dev/null >/dev/null 2>&1 &
-    echo "로그를 USB($_u)의 EV6_LOG 폴더에 저장 중 (약 1분, 끝나면 안내가 뜹니다)"
+    echo "로그를 복사하는 중... ($_u 의 EV6_LOG 폴더). '로그 복사를 완료하였습니다' 안내가 뜰 때까지 USB를 빼지 마세요"
+    _got=1
     break
 done
+[ -n "$_got" ] || echo "USB가 꽂혀 있지 않아 로그를 복사하지 않았습니다 (로그가 필요하면 USB를 꽂고 다시 실행)"
 exit 0
