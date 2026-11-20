@@ -38,7 +38,7 @@ vlog() { echo "$(date) $*" >> "$LOG" 2>/dev/null; log -t USBWifiHotspot "v4: $*"
 
 # 4.11 privacy filter for every log that can leave the car (USB copies, drop logs, Launch log bundle).
 # Lines from sources that carry personal data are left out (contacts, call log, phonebook, messages, songs and
-# artists, location, connected-car service, phone/SIM ids, device names, Wi-Fi names and passwords, phone numbers);
+# artists, location, connected-car service, phone/SIM ids, device and phone names, Wi-Fi names and passwords, phone numbers);
 # Bluetooth/Wi-Fi addresses keep only their last 2 bytes (xx:xx:xx:xx:12:E4), enough to tell devices apart.
 # scrub_file <in> <out>: writes the filtered copy and a last line saying how many lines were left out.
 priv_drop() {
@@ -46,7 +46,7 @@ priv_drop() {
         -e artist -e album -e title= -e metadata -e PLAYER_MANAGER -e SplitScreen -e AvrcpController -e nowplaying \
         -e CoNA -e Mqtt -e System.out -e VoiceMemo -e AdvancedLauncher -e RILJ -e DataCall -e onDataStateChanged \
         -e imei -e imsi -e iccid -e serialno -e android_id -e latitude -e longitude -e GpsLocation -e LocationManager -e LocationProvider -e lat= -e lon= -e geo: \
-        -e " name=" -e mName -e deviceName -e friendlyName -e "device name" -e alias -e ssid -e passphrase -e psk= -e password \
+        -e " name=" -e "name: " -e "name = " -e "remote name" -e mName -e deviceName -e friendlyName -e "device name" -e alias -e ssid -e passphrase -e psk= -e password \
         -e "+82" -e "01[016789]-[0-9][0-9][0-9]" -e "3[3-8][.][0-9][0-9][0-9][0-9].*1[23][0-9][.][0-9][0-9][0-9][0-9]" "$1" 2>/dev/null
 }
 # 4.13.1: the car has no wc (2026-11-20 logs: "( bytes)", filter counts always 0): count lines with grep
@@ -54,9 +54,49 @@ lines_of() { _lc=$(grep -c "" "$1" 2>/dev/null); echo "${_lc:-0}"; }
 # a USB stick is really mounted there (the /storage/usbN folders exist without a stick)
 usb_mounted() { [ -f "$PROC/mounts" ] || return 0; grep -q " $1 " "$PROC/mounts" 2>/dev/null; }
 USBS=${USBS:-/storage/usb0 /storage/usb1 /storage/usb2}
+# 4.13.2: phone names (2026-11-20 drop logs: the owner's phone name was left in ~35 lines of shapes like
+# "device: <name> length:", "requestWL...Update <name>]", "<name>, AB:CD..." that no keyword catches).
+# priv_names <log>: the phone/Bluetooth names, read from the lines that name them in that log and from the car's
+# Bluetooth pairing list; names_drop "<names>": stdin to stdout without any line holding one of them.
+BTCONF=${BTCONF:-${ROOT:-}/data/misc/bluedroid/bt_config.xml ${ROOT:-}/data/misc/bluedroid/bt_config.conf}
+priv_names() {
+    { grep -i -e "PP] Wireless" -e "DeviceInfo, Name" -e "remote_name" -e "Remote Name :" "$1" 2>/dev/null
+      for _bc in $BTCONF; do grep -i -e 'Tag="Name"' -e '^Name = ' "$_bc" 2>/dev/null; done
+    } | while IFS= read -r _nl; do
+        case "$_nl" in
+            *'Tag="Name"'*) _nv=${_nl#*">"}; _nv=${_nv%%"<"*} ;;
+            *[Rr]emote\ [Nn]ame\ :*) _nv=${_nl#*[Nn]ame : }; _nv=${_nv%%"  (len"*} ;;
+            *[Nn]ame\ =\ *) _nv=${_nl##*[Nn]ame = } ;;
+            *[Nn]ame:\ *) _nv=${_nl##*[Nn]ame: } ;;
+            *) continue ;;
+        esac
+        _nv=${_nv%%"]"*}; _nv=${_nv%%")"*}; _nv=${_nv%%","*}; _nv=${_nv%"${_nv##*[! ]}"}; _nv=${_nv#"${_nv%%[! ]*}"}
+        case "$_nv" in ""|?|??|null|"(null)"|unknown|*": "*|*:??:??|*[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:*) continue ;; esac
+        echo "$_nv"
+    done
+}
+names_drop() {
+    _nall=$1; set --
+    while IFS= read -r _nn; do
+        [ -n "$_nn" ] || continue
+        case " $* " in *" -e $_nn "*) continue ;; esac
+        set -- "$@" -e "$_nn"
+    done <<EOF
+$_nall
+EOF
+    if [ $# -eq 0 ]; then cat
+    elif echo "a.b" | grep -q -F -e "a.b" 2>/dev/null; then grep -v -F "$@"
+    else   # no fixed-string grep: slow shell match
+        while IFS= read -r _nl; do
+            _hit=; for _nn in "$@"; do [ "$_nn" = "-e" ] && continue; case "$_nl" in *"$_nn"*) _hit=1; break ;; esac; done
+            [ -n "$_hit" ] || echo "$_nl"
+        done
+    fi
+}
 scrub_file() {
     _sa=0; [ -f "$1" ] && _sa=$(lines_of "$1")
-    priv_drop "$1" | while IFS= read -r _sl; do
+    _snm=$(priv_names "$1")
+    priv_drop "$1" | names_drop "$_snm" | while IFS= read -r _sl; do
         case "$_sl" in
             *[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]*)
                 _sl=${_sl//[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:/xx:xx:xx:xx:} ;;

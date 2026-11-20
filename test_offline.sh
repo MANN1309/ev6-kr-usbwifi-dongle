@@ -294,15 +294,17 @@ ok "apply fails on a new install: mod taken out, dongle installs" "[ $rc = 0 ] &
 modcar t25; out=$(MOCK_INSTALL=fail post); rc=$?
 ok "HMG-API refuses: logged, dongle installs" "[ $rc = 0 ] && echo \"\$out\" | grep -q 'didn.t install the mod'"
 echo "== 22 4.10: an Android Auto drop (aa-keep writes drop.req): the logs of that moment saved at once, newest 8 kept, copied"
-printf '#!/bin/bash\necho "11-15 15:24:57.100  1000  1100 I AAProjection: GalConnectionSession : Wireless << AA Ping TimeOut!!"\necho "11-15 15:24:50.000  1000  1100 I SplitScreen: song tick"\n' > "$W/bin/logcat"
+printf '#!/bin/bash\necho "11-15 15:24:57.100  1000  1100 I AAProjection: GalConnectionSession : Wireless << AA Ping TimeOut!!"\necho "11-15 15:24:50.000  1000  1100 I SplitScreen: song tick"\necho "11-15 15:24:40.000  974 974 I AAProjection: WirelessExplorer : [AA >> PP] Wireless ==> Connecting, name: Mina Phone X"\necho "11-15 15:24:41.000  974 974 D AAProjection: a : onBTCMSppStatusChanged, device: Mina Phone X status: 2"\necho "11-15 15:24:42.000  1875 1875 I PhoneProjection: requestWLDeviceReadyStatusUpdate Mina Phone X], Ready (1)"\necho "11-15 15:24:43.000  1 1 I BTCMService: btcmGetPriorityDevice 0 : address = C1:EF:**; Tablet Kay)"\n' > "$W/bin/logcat"
 printf '#!/bin/bash\necho "<6>[  620.1] rtl88x2bu 4-1:1.0: something"\n' > "$W/bin/dmesg"; chmod +x "$W/bin/logcat" "$W/bin/dmesg"
 newcar t26; netif rtwlan1 12 usb; Q=$ROOT/proc/net/rtl88x2bu/wlan0; mkdir -p "$Q"; echo "rssi:-35" > "$Q/rx_signal"; echo "sta 02:00:00:00:aa:01 tx_rate 433" > "$Q/all_sta_info"
+mkdir -p "$ROOT/data/misc/bluedroid"; echo '<N1 Tag="Name" Type="string">Tablet Kay</N1>' > "$ROOT/data/misc/bluedroid/bt_config.xml"
 TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD"; echo "11-15 15:24:59 DROP: Android Auto ended while connected (status 6 -> 0, mode 0) after 578 s" > "$TD/drop.req"
 runsvc >/dev/null 2>&1; DF=$(ls $TD/drop_*.log 2>/dev/null | head -1)
 ok "drop file saved, request taken" "[ -s \"$DF\" ] && [ ! -f $TD/drop.req ] && grep -q 'drop: Android Auto ended.*saved to drop_' $TD/daemon.log"
 ok "drop file: why, likely cause (Ping TimeOut picked out), Wi-Fi of the last minute, logcat, kernel" "grep -q '== Android Auto drop: 11-15 15:24:59 DROP' \"$DF\" && sed -n '/likely cause/,/Wi-Fi from/p' \"$DF\" | grep -q 'Ping TimeOut' && ! sed -n '/likely cause/,/Wi-Fi from/p' \"$DF\" | grep -q 'song tick' && grep -q 'tx_rate 433' \"$DF\" && grep -q 'rtl88x2bu 4-1' \"$DF\""
+ok "4.13.2 phone names: every line naming the phone left out (from the log's own name lines and the car's pairing list)" "! grep -q -e 'Mina Phone' -e 'Tablet Kay' \"$DF\" && grep -q 'Ping TimeOut' \"$DF\""
 ok "no temp files left" "! ls $TD/drop_*.lc $TD/drop_*.km $TD/drop_*.raw >/dev/null 2>&1"
-ok "4.11 privacy: song line left out, address shows only its last 2 bytes, filter line at the end" "! grep -q 'song tick' \"$DF\" && ! grep -q '02:00:00:00:aa:01' \"$DF\" && grep -q 'xx:xx:xx:xx:aa:01 tx_rate 433' \"$DF\" && grep -q '^== privacy filter (usbwifi.hotspot): 1 lines' \"$DF\""
+ok "4.11 privacy: song line (and 4.13.2: 4 phone-name lines) left out, address shows only its last 2 bytes, filter line at the end" "! grep -q 'song tick' \"$DF\" && ! grep -q '02:00:00:00:aa:01' \"$DF\" && grep -q 'xx:xx:xx:xx:aa:01 tx_rate 433' \"$DF\" && grep -q '^== privacy filter (usbwifi.hotspot): 5 lines' \"$DF\""
 for i in 1 2 3 4 5 6 7 8 9; do echo old > "$TD/drop_0101_00000$i.log"; done; echo "again" > "$TD/drop.req"
 runsvc >/dev/null 2>&1; runsvc >/dev/null 2>&1
 ok "newest 8 kept (oldest removed, the new ones there)" "[ \$(ls $TD/drop_*.log | wc -l) -eq 8 ] && [ ! -f $TD/drop_0101_000001.log ] && [ -f \"$DF\" ]"
@@ -313,11 +315,12 @@ echo "== 23 4.11 privacy filter: USB copies and the Launch bundle carry no perso
 newcar t23; netif rtwlan1 12 usb; TD=$ROOT/data/local/tmp/usbwifi_hotspot; mkdir -p "$TD" "$ROOT/storage/usb0"
 { echo "aa-keep: phone 0A:1B:2C:3D:12:E4 on Bluetooth"; echo "BluetoothContactsProvider: add Hong"; echo "CoNA: tel 010-1234-5678"; echo "keep: step 1 START"; } > "$TD/aakeep.log"
 echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" > "$ROOT/proc/mounts"; runsvc >/dev/null 2>&1
-echo "== privacy filter (usbwifi.hotspot): 0 lines with personal data left out" > "$TD/drop_1120_190522.log"
+{ echo "I AAProjection: GalReceiverService : [AA >> PP] Wireless ==> Disconnected Send, name: Mina Phone X"; echo "D AAProjection: a : onBTCMSppInPutStreamChanged, device: Mina Phone X length: 4"; echo "E GalReceiver: Error from SSL_read"; echo "== privacy filter (usbwifi.hotspot): 0 lines with personal data left out"; } > "$TD/drop_1120_190522.log"
 (cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb0" >/dev/null 2>&1)
 CF=$(ls $ROOT/storage/usb0/EV6_LOG_up*/dongle/aakeep.log 2>/dev/null | head -1)
 ok "USB copy: contacts and phone number lines left out, address masked, other lines kept" "[ -f \"$CF\" ] && ! grep -q -e Hong -e 010-1234 -e 0A:1B:2C:3D:12:E4 \"$CF\" && grep -q 'phone xx:xx:xx:xx:12:E4 on Bluetooth' \"$CF\" && grep -q 'keep: step 1 START' \"$CF\" && grep -q 'privacy filter.*: 2 lines' \"$CF\""
-ok "already-filtered drop log copied as it is (not filtered twice)" "[ \$(grep -c 'privacy filter' \$(ls $ROOT/storage/usb0/EV6_LOG_up*/dongle/drop_1120_190522.log | head -1)) = 1 ]"
+DC=$(ls $ROOT/storage/usb0/EV6_LOG_up*/dongle/drop_1120_190522.log 2>/dev/null | head -1)
+ok "already-filtered drop log (4.13.1 and older): not filtered twice, but phone-name lines taken out (4.13.2)" "[ \$(grep -c 'privacy filter' \"$DC\") = 1 ] && ! grep -q 'Mina Phone' \"$DC\" && grep -q 'SSL_read' \"$DC\" && grep -q '^== phone-name filter (usbwifi.hotspot): 2 more lines' \"$DC\""
 printf '#!/bin/bash\necho "11-16 10:00:00.000 1 2 I BTA_BT_PLAYER_MANAGER: artist=A title=B"\necho "11-16 10:00:01.000 1 2 I HKMC_GPM: status 6 phone 0A:1B:2C:3D:12:E4"\n' > "$W/bin/logcat"; chmod +x "$W/bin/logcat"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/collect.sh "$ROOT/storage/usb0" 2>&1); LB=$(ls -d $ROOT/storage/usb0/EV6_LOG_up* 2>/dev/null | head -1)
 ok "Launch bundle: logcat filtered (song gone, address masked, GPM kept)" "[ -f \"$LB/03_logcat.txt\" ] && ! grep -q artist \"$LB/03_logcat.txt\" && grep -q 'status 6 phone xx:xx:xx:xx:12:E4' \"$LB/03_logcat.txt\" && grep -q '^== privacy filter' \"$LB/01_state.txt\""

@@ -66,8 +66,11 @@ for f in "$T"/*; do
   [ -f "$f" ] || continue
   case "${f##*/}" in *.conf|*.lock|*.tmp) continue ;; esac   # 예전 판의 hostapd 설정(비밀번호)은 가져오지 않음
   # 4.13.1: 끊김 기록(drop_*.log)은 저장할 때 이미 필터를 거침: 그대로 복사 (다시 거르면 몇 분 걸림)
+  # 4.13.2: 4.13.1 이하가 저장한 기록에는 폰 이름이 남아 있을 수 있음: 이름 줄만 빠르게 한 번 더 거름
   if grep -q "^== privacy filter (usbwifi.hotspot)" "$f" 2>/dev/null; then
-    cat "$f" > "$O/dongle/${f##*/}" 2>> "$E" && nfiles=$((nfiles + 1))
+    _fo="$O/dongle/${f##*/}"
+    names_drop "$(priv_names "$f")" < "$f" > "$_fo" 2>> "$E" && nfiles=$((nfiles + 1))
+    echo "== phone-name filter (usbwifi.hotspot): $(( $(lines_of "$f") - $(lines_of "$_fo") )) more lines left out" >> "$_fo"
   else
     sc "$f" "$O/dongle/${f##*/}"
   fi
