@@ -6,10 +6,33 @@
 export PATH=${KR_TEST_PATH:+$KR_TEST_PATH:}/data/nemesis/bin:/sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
 U=${1:?usage: collect.sh <USB folder>}
 # 4.13.1: the user pressed Launch = agreed to the copy. The car shows what happens (toast): copying / done / failed.
+# 4.14.1: done / failed as a window that stays until ✕ is pressed (popup below), the toast is only the fallback.
 O=
 toast() {
     am broadcast -a com.hkmc.intent.action.TOAST -e com.hkmc.intent.extra.TOAST_MESSAGE "$1" >/dev/null 2>&1
     _tr=$?; [ -n "$O" ] && echo "$(date) toast rc=$_tr: $1" >> "$O/00_steps.txt"
+}
+# 4.14.1: the result (done / failed) as a window in the middle of the screen that stays until its ✕ is pressed
+# (bin/done.jar, source in source/ui). If the window can't be shown within ~12 s the same text goes out as a toast.
+popup() {   # popup ok|fail "<title>" "<message>"
+    _pd=$T/ui; mkdir -p "$_pd" 2>/dev/null; _ps=$_pd/status; rm -f "$_ps"
+    _pp=; [ -f "$_pd/pid" ] && read -r _pp < "$_pd/pid" 2>/dev/null
+    [ -n "$_pp" ] && kill "$_pp" 2>/dev/null          # a window still open from an earlier copy
+    _st="no bin/done.jar"
+    if [ -f "$PWD/bin/done.jar" ]; then
+        (
+            export CLASSPATH="$PWD/bin/done.jar" LD_LIBRARY_PATH=/vendor/lib:/system/lib ANDROID_ROOT=/system ANDROID_DATA=/data
+            [ -n "$BOOTCLASSPATH" ] || export BOOTCLASSPATH=/system/framework/core.jar:/system/framework/conscrypt.jar:/system/framework/okhttp.jar:/system/framework/core-junit.jar:/system/framework/bouncycastle.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/framework2.jar:/system/framework/telephony-common.jar:/system/framework/voip-common.jar:/system/framework/mms-common.jar:/system/framework/android.policy.jar:/system/framework/services.jar:/system/framework/apache-xml.jar:/system/framework/webviewchromium.jar:/system/framework/automotive.jar
+            exec app_process /system/bin ev6.usbwifi.Done "$1" "$2" "$3" "$_ps"
+        ) < /dev/null > /dev/null 2>> "$_pd/out" &
+        echo $! > "$_pd/pid"
+        _i=0
+        while [ $_i -lt 12 ] && [ ! -s "$_ps" ]; do sleep 1; _i=$((_i + 1)); done
+        _st="no answer in 12 s"; [ -s "$_ps" ] && read -r _st < "$_ps"
+    fi
+    [ -n "$O" ] && echo "$(date) window: $_st: $2 $3" >> "$O/00_steps.txt"
+    case "$_st" in "shown "*) return 0 ;; esac
+    toast "$2. $3"
 }
 # the privacy filter: without it nothing is collected (status.sh starts us in the package folder)
 [ -f ./kr/common.sh ] && . ./kr/common.sh
@@ -27,7 +50,7 @@ sx() { "$@" > "$W" 2>> "$E"; }            # command output to the work file, the
 nfiles=0
 read -r UP _ < /proc/uptime
 UP=${UP%%.*}
-mkdir -p "$U/EV6_LOG_up$UP" 2>/dev/null || { rm -f "$K"; toast "로그 복사 실패: USB에 쓸 수 없습니다 (USB를 다시 꽂아 주세요)"; echo "USB에 쓸 수 없음"; exit 1; }
+mkdir -p "$U/EV6_LOG_up$UP" 2>/dev/null || { rm -f "$K"; popup fail "로그 복사 실패" "USB에 쓸 수 없습니다. USB를 다시 꽂은 뒤 Launch를 다시 눌러 주세요"; echo "USB에 쓸 수 없음"; exit 1; }
 O="$U/EV6_LOG_up$UP"
 E="$O/00_errors.txt"
 step() { echo "$(date) $*" >> "$O/00_steps.txt"; }
@@ -109,5 +132,5 @@ step "dmesg/logcat done"
 sync
 step "end: $nfiles files"
 rm -f "$K"
-toast "로그 복사를 완료하였습니다 ($nfiles개). USB를 빼셔도 됩니다"
+popup ok "로그 복사를 완료하였습니다" "USB를 빼셔도 됩니다.\n복사한 파일 $nfiles개: USB의 EV6_LOG_up$UP 폴더"
 exit 0

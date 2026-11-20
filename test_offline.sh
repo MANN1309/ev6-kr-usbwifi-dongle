@@ -206,23 +206,27 @@ ok "KP's boot wait end logged with the hotspot's state" "grep -q \"watch: KP's 9
 kill $HK; rm -rf "$ROOT/proc/$HK"; sleep 0.8
 ok "hotspot ended while wlan0 stayed: logged with run time, AA signal, KP's last line" "grep -q 'watch: hotspot hostapd $HK (started by KP) ENDED after .*wlan0 still-here, AA signal 1, KP last: 11-13 18:27:19' $LOGF"
 kill $SVC $KM $KF 2>/dev/null; for f in "$ROOT"/proc/[0-9]*; do kill ${f##*/} 2>/dev/null; done; wait 2>/dev/null
-echo "== 19 4.13.1 Launch copies only to a stick that is really mounted, with car messages"
+echo "== 19 4.13.1/4.14.1 Launch copies only to a stick that is really mounted, with car messages"
 newcar t19; mkdir -p "$ROOT/data/local/tmp/usbwifi_hotspot"; echo "line from before" > "$ROOT/data/local/tmp/usbwifi_hotspot/aakeep.log"
 printf '#!/bin/bash\necho "$*" >> "$ROOT/am.calls"\n' > "$W/bin/am"; chmod +x "$W/bin/am"
+# 4.14.1: the car's app_process shows the result window (ev6.usbwifi.Done ok|fail title message status-file)
+printf '#!/bin/bash\necho "$3 $4 | $5" >> "$ROOT/ui.calls"\necho "${UI_ANSWER:-shown type 2020}" > "$6"\n' > "$W/bin/app_process"; chmod +x "$W/bin/app_process"
 echo "/dev/block/vold/179:1 /storage/sdcard vfat rw 0 0" > "$ROOT/proc/mounts"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/status.sh 2>&1); sleep 1
 ok "folder there but no stick mounted: nothing copied, says so" "! ls -d $ROOT/storage/usb0/EV6_LOG_up* >/dev/null 2>&1 && echo \"\$out\" | grep -q 'USB가 꽂혀 있지 않아'"
 echo "/dev/block/vold/8:1 /storage/usb0 exfat rw 0 0" >> "$ROOT/proc/mounts"
-out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/status.sh 2>&1); sleep 2; LB=$(ls -d $ROOT/storage/usb0/EV6_LOG_up* 2>/dev/null | head -1)
-ok "Launch: says copying, then the car shows copying... and done (you can pull the stick)" "echo \"\$out\" | grep -q '로그를 복사하는 중' && grep -q '로그를 복사하는 중... USB를 빼지 마세요' $ROOT/am.calls && grep -q '로그 복사를 완료하였습니다 ([0-9]*개). USB를 빼셔도 됩니다' $ROOT/am.calls"
-ok "copied files counted, toasts logged, lock removed" "grep -q 'end: [1-9][0-9]* files' $LB/00_steps.txt && grep -q 'toast rc=0' $LB/00_steps.txt && [ ! -f $ROOT/data/local/tmp/usbwifi_hotspot/collect.lock ]"
+out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/status.sh 2>&1); sleep 4; LB=$(ls -d $ROOT/storage/usb0/EV6_LOG_up* 2>/dev/null | head -1)
+ok "Launch: says copying (toast), then done as a window that stays until X (4.14.1), not as a toast" "echo \"\$out\" | grep -q '로그를 복사하는 중' && grep -q '로그를 복사하는 중... USB를 빼지 마세요' $ROOT/am.calls && grep -q '^ok 로그 복사를 완료하였습니다 | USB를 빼셔도 됩니다.*복사한 파일 [1-9][0-9]*개: USB의 EV6_LOG_up[0-9]* 폴더' $ROOT/ui.calls && ! grep -q '완료' $ROOT/am.calls"
+ok "copied files counted, toast and window logged, lock removed" "grep -q 'end: [1-9][0-9]* files' $LB/00_steps.txt && grep -q 'toast rc=0' $LB/00_steps.txt && grep -q 'window: shown type 2020: 로그 복사를 완료하였습니다' $LB/00_steps.txt && [ ! -f $ROOT/data/local/tmp/usbwifi_hotspot/collect.lock ]"
+: > $ROOT/am.calls; (cd "$A" && UI_ANSWER="fail: no window type accepted" ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb0" >/dev/null 2>&1)
+ok "window can't be shown on this car: the same result goes out as a toast" "grep -q '로그 복사를 완료하였습니다. USB를 빼셔도 됩니다' $ROOT/am.calls"
 sleep 300 & LK=$!; mkdir -p "$ROOT/proc/$LK"; echo $LK > "$ROOT/data/local/tmp/usbwifi_hotspot/collect.lock"; : > $ROOT/am.calls
 (cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usb0" >/dev/null 2>&1)
 ok "Launch pressed again while copying: says so, no second copy" "grep -q '이미 로그를 복사하는 중' $ROOT/am.calls && ! grep -q '완료' $ROOT/am.calls"
 kill $LK 2>/dev/null; rm -f "$ROOT/data/local/tmp/usbwifi_hotspot/collect.lock"
 mkdir -p "$ROOT/storage/usbro"; chmod 555 "$ROOT/storage/usbro"; : > $ROOT/am.calls
 (cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH sh bin/collect.sh "$ROOT/storage/usbro" >/dev/null 2>&1)
-ok "stick not writable: the car says copy failed" "grep -q '로그 복사 실패: USB에 쓸 수 없습니다' $ROOT/am.calls"
+ok "stick not writable: the car says copy failed (window)" "grep -q '^fail 로그 복사 실패 | USB에 쓸 수 없습니다' $ROOT/ui.calls"
 chmod 755 "$ROOT/storage/usbro"
 echo "== 20 this car: KP's waits run as a forked shell (sh) in nanosleep - ended; its permission task and log readers kept"
 newcar t20; netif rtwlan1 12 usb; mkdir -p "$ROOT/data/nemesis/logs/korea.projection" "$ROOT/props" "$ROOT/data/local/tmp/korea.projection" "$ROOT/data/misc/wifi"; echo "20.0 0.0" > "$ROOT/proc/uptime"
