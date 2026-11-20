@@ -40,7 +40,8 @@ if [ -f "$CHIP_OURS" ]; then
     rm -f "$CHIP" "$CHIP_OURS"
     echo "removed the Wi-Fi chip mark (HMG-API mods that need a Wi-Fi chip are off after the next restart)"
 fi
-rm -f "$LOG" "$T/daemon.prev.log"
+rm -f "$EXP8851_OFF" "$EXP8851_GUARD"
+rm -f "$LOG" "$T/daemon.prev.log" "$T/daemon.old.log"
 rmdir "$T" 2>/dev/null
 echo "removed. The dongle driver stays loaded until the next restart (never unloaded while running)."
 exit 0

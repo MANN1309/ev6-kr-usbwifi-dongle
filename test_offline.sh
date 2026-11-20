@@ -22,6 +22,7 @@ X
   cat > "$W/bin/insmod" <<'X'
 #!/bin/bash
 echo "$*" >> "$ROOT/insmod.calls"; [ -n "$INSMOD_FAIL" ] && exit 1
+case "$1" in *8851bu.ko) [ -n "$INSMOD8851_FAIL" ] && exit 1; echo "8851bu 5000000 0 - Live 0x0" >> "$MODS"; exit 0 ;; esac
 echo "88x2bu 2722628 0 - Live 0x0" >> "$MODS"; mkdir -p "$ROOT/sys/module/88x2bu"; echo 46A9CFB83C8F6E0C09E8AAC > "$SRCV"; exit 0
 X
   printf '#!/bin/bash\ncat "$ROOT/props/$1" 2>/dev/null; exit 0\n' > "$W/bin/getprop"
@@ -324,6 +325,28 @@ out=$(cd "$A" && KR_TEST_PATH=$W/bin:$PATH sh scripts/post.sh 2>&1); runsvc >/de
 ok "other kernel: no insmod, no chip mark, reason logged with the kernel version" "[ ! -f $ROOT/insmod.calls ] && [ ! -f $ROOT/data/hmgapi/public/wifi-chip ] && grep -q 'FAIL: this firmware.*Kernel: Linux version 4.14.98-tcc' $ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"
 ok "other kernel: install warns, status says so" "echo \"\$out\" | grep -q 'driver will NOT load' && (cd $A && KR_TEST_PATH=$W/bin:\$PATH USBS=/none sh bin/status.sh) | grep -q 'kernel is not supported'"
 ok "descriptor: any EV6 KR firmware (CVEV.KOR*)" "grep -q '^os=\"CVEV.KOR[*]\"' $P/NEMESIS.data"
+echo "== 26 4.13 EXPERIMENTAL RTL8851BU: loaded only for that chip, boot guard, switch-off flag"
+fake8851() { mkdir -p "$ROOT/sys/bus/usb/devices/1-2"; echo 0bda > "$ROOT/sys/bus/usb/devices/1-2/idVendor"; echo b851 > "$ROOT/sys/bus/usb/devices/1-2/idProduct"; }
+L26() { echo "$ROOT/data/local/tmp/usbwifi_hotspot/daemon.log"; }
+newcar t26a; netif rtwlan1 12 usb; runsvc >/dev/null 2>&1
+ok "no RTL8851BU plugged in: 8851bu never loaded (T3U cars unchanged)" "! grep -q 8851bu $ROOT/insmod.calls"
+newcar t26b; fake8851; runsvc >/dev/null 2>&1
+ok "RTL8851BU plugged in: 8851bu loaded with KR + usbfs block, guard removed, logged" "grep -q '8851bu.ko .*rtw_country_code=KR.*rtw_usbfs_block=1' $ROOT/insmod.calls && [ ! -f $ROOT/data/nemesis/usbwifi-v4.8851.loading ] && grep -q '8851: insmod 8851bu rc=0' \$(L26)"
+ok "usb report names it experimental" "grep -q 'usb: 1-2 0bda:b851.*EXPERIMENTAL: RTL8851BU' \$(L26)"
+ok "88x2bu still loaded as before" "grep -q '88x2bu.ko' $ROOT/insmod.calls"
+newcar t26c; fake8851; echo "11-20 uptime 9s" > "$ROOT/data/nemesis/usbwifi-v4.8851.loading"; runsvc >/dev/null 2>&1
+ok "guard left by an unfinished load: switched off, not loaded again, reason logged" "[ -f $ROOT/data/nemesis/usbwifi-v4.8851.off ] && ! grep -q 8851bu $ROOT/insmod.calls && grep -q 'did not finish loading last time' \$(L26)"
+runsvc >/dev/null 2>&1
+ok "switched off: next start says so, still not loaded" "! grep -q 8851bu $ROOT/insmod.calls && grep -q 'experimental driver is switched off' \$(L26)"
+out=$(cd "$A" && KR_TEST_PATH=$W/bin:$PATH sh scripts/post.sh 2>&1)
+ok "reinstall switches it on again" "[ ! -f $ROOT/data/nemesis/usbwifi-v4.8851.off ] && echo \"\$out\" | grep -q 'switched on again'"
+newcar t26d; fake8851; export INSMOD8851_FAIL=1; runsvc >/dev/null 2>&1; unset INSMOD8851_FAIL
+ok "8851bu insmod fails: logged, guard removed, 88x2bu side unaffected" "grep -q '8851: insmod 8851bu rc=1' \$(L26) && [ ! -f $ROOT/data/nemesis/usbwifi-v4.8851.loading ] && grep -q 'driver: insmod bundled 88x2bu rc=0' \$(L26)"
+newcar t26e; fake8851; echo "Linux version 4.14.98-tcc (b@h) (gcc) #1 SMP PREEMPT x" > "$ROOT/proc/version"; runsvc >/dev/null 2>&1
+ok "other kernel: 8851bu not loaded either" "[ ! -f $ROOT/insmod.calls ]"
+req=$(sed -n 's/^REQUIRED_PARAMS="${REQUIRED_PARAMS:-\(.*\)}"$/\1/p' $P/source/driver8851/inner-build.sh); args=$(. $P/kr/common.sh; for a in $KO8851_ARGS; do echo "${a%%=*}"; done)
+miss=; for a in $args; do case " $req " in *" $a "*) ;; *) miss="$miss $a" ;; esac; done
+ok "every 8851bu insmod option is checked by the driver build (unknown options make insmod fail)" "[ -n \"$req\" ] && [ -z \"$miss\" ]"
 echo "== 13 Launch with a USB stick: status + log bundle on the stick"
 newcar t13; mkdir -p "$ROOT/storage/usb0"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/status.sh 2>&1); sleep 2

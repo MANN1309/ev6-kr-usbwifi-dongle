@@ -18,6 +18,14 @@ kernel_ok() {
     case "$kv" in *" $KERNEL_WANT "*"SMP PREEMPT"*) return 0 ;; esac
     return 1
 }
+# 4.13 EXPERIMENTAL: RTL8851BU (AX900) dongles, driver modules/8851bu.ko (GPL-2.0, source in source/driver8851).
+# Not tested with the real dongle. Loaded only when one of these USB IDs is plugged in; a boot guard turns it off
+# if a load ever did not finish (head unit restarted while loading). Make EXP8851_OFF to switch it off by hand.
+ID8851=" 0bda:b851 3625:010b 7392:e611 "
+# power save (IPS/LPS) is off in this build: CONFIG_RTW_IPS/LPS are not set, so the defaults are PS_OP_MODE_DISABLED
+KO8851_ARGS='ifname=rtwlan%d if2name=rtwlan%d rtw_country_code=KR rtw_en_napi=0 rtw_en_gro=0 rtw_usbfs_block=1'
+EXP8851_OFF=${ROOT:-}/data/nemesis/usbwifi-v4.8851.off
+EXP8851_GUARD=${ROOT:-}/data/nemesis/usbwifi-v4.8851.loading
 KO_ARGS='ifname=rtwlan%d if2name=rtwlan%d rtw_country_code=KR rtw_power_mgnt=0 rtw_ips_mode=0 rtw_enusbss=0 rtw_en_napi=0 rtw_en_gro=0 rtw_usbfs_block=1'
 PROC=${PROC:-${ROOT:-}/proc}
 KPW=${KPW:-${ROOT:-}/data/local/tmp/korea.projection}          # Korea Projection's work folder (dnsmasq.pid, ap.log)

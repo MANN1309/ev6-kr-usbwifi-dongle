@@ -3,7 +3,7 @@
 > ⚠️ **[면책 고지](DISCLAIMER.md)를 먼저 읽어 주세요.**
 > 비공식 개인 프로젝트입니다. **설치·사용으로 차량에 생기는 모든 문제의 책임은 사용자 본인에게 있습니다.**
 
-**현재 버전: 4.12.0** (NEMESIS 패키지 id `usbwifi.hotspot`)
+**현재 버전: 4.12.0** (NEMESIS 패키지 id `usbwifi.hotspot`) · 🧪 시험판 [4.13.0](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases/tag/v4.13.0): RTL8851BU 실험 지원 (저장소 `main`의 소스는 시험판 기준)
 
 > 💡 **설치만 하실 분은 [Releases](https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases/latest)의 `EV6-dongle-USB-v버전.zip` 하나만 받으면 됩니다.** 저장소의 나머지 폴더는 소스 코드입니다.
 
@@ -89,7 +89,7 @@
 | 차량 | 기아 EV6 국내형 펌웨어(`CVEV.KOR…`)에 설치됩니다. **실차 확인은 CVEV.KOR.0000.V039.001.260902**. 커널이 다른 펌웨어에서는 드라이버를 올리지 않고 상태 화면에 "kernel is not supported"로 알려 줍니다 |
 | 대상 | **내장 Wi-Fi 칩이 없는 차** (내장 Wi-Fi가 있는 차는 이 패키지가 필요 없음) |
 | 필요한 것 | NEMESIS, HMG-API 코어 1.0.2 이상, Korea Projection 1.7.2 (각 공식 배포처에서 설치) |
-| 동글 | [지원 동글 목록](docs/지원동글.md) — 실차 확인은 TP-Link Archer T3U Nano 하나 |
+| 동글 | [지원 동글 목록](docs/지원동글.md) — 실차 확인은 TP-Link Archer T3U Nano 하나. 🧪 RTL8851BU(AX900급)는 시험판에서 실험 지원(실물 미확인) |
 | 폰 | 무선 안드로이드 오토. **카플레이·아이폰은 시험하지 않음** |
 
 ## 제작자 차량 시험 조건

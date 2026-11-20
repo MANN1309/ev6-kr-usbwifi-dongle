@@ -12,6 +12,8 @@ case $_sv in "$DRV_SRCVERSION") d="bundled driver loaded" ;; "") d="driver NOT l
 kernel_ok || d="driver NOT loaded: this firmware's kernel is not supported (needs $KERNEL_WANT)"
 [ -d "$SYSNET/wlan0" ] && w="wlan0 present" || w="no wlan0 (dongle?)"
 [ -f "$CHIP" ] && c="chip mark yes" || c="chip mark NO"
+if grep -q "^8851bu " "$MODS" 2>/dev/null; then d="$d; RTL8851BU experimental driver loaded"
+elif [ -f "$EXP8851_OFF" ]; then d="$d; RTL8851BU experimental driver switched off"; fi
 echo "USB Wi-Fi v4: $d, $w, $c, hotspot signal sys.kp.aa_ap=$(getprop sys.kp.aa_ap)"
 # a USB stick is plugged in: save a full log bundle there (in the background; a toast says when it is done)
 for _u in ${USBS:-/storage/usb0 /storage/usb1 /storage/usb2}; do

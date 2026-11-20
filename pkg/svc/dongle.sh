@@ -21,6 +21,7 @@ vlog "start v4 (pid $$)"
 trap 'vlog "stop"; rm -f "$T/dongle.pid"; exit 0' TERM INT HUP
 
 loaded() { grep -q "^88x2bu " "$MODS" 2>/dev/null; }
+loaded8851() { grep -q "^8851bu " "$MODS" 2>/dev/null; }
 load_driver() {
     if loaded; then
         _sv=; read -r _sv < "$SRCV" 2>/dev/null
@@ -229,6 +230,34 @@ dongle_usb() {   # the dongle's USB device folder, by vendor:product
     done
     return 1
 }
+present8851() {   # an RTL8851BU dongle is plugged in (by vendor:product)
+    for _d in "$USBDEV"/*; do
+        [ -f "$_d/idVendor" ] || continue
+        _v=; _pr=; read -r _v < "$_d/idVendor"; read -r _pr < "$_d/idProduct"
+        case "$ID8851" in *" $_v:$_pr "*) return 0 ;; esac
+    done
+    return 1
+}
+# 4.13 EXPERIMENTAL: load 8851bu.ko once per run when an RTL8851BU dongle is there (never for other dongles)
+try8851=0
+load_8851() {
+    [ $try8851 = 0 ] || return 0
+    loaded8851 && { try8851=1; return 0; }
+    present8851 || return 0
+    try8851=1
+    if [ -f "$EXP8851_OFF" ]; then
+        vlog "8851: RTL8851BU dongle found, experimental driver is switched off ($EXP8851_OFF); reinstall the package to try again"
+        return 0
+    fi
+    [ -f ./modules/8851bu.ko ] || { vlog "FAIL: 8851: modules/8851bu.ko missing"; return 1; }
+    echo "$(date) uptime $(uptime_s)s" > "$EXP8851_GUARD" 2>/dev/null; sync
+    vlog "8851: RTL8851BU dongle found: loading the EXPERIMENTAL driver 8851bu (not tested with the real dongle)"
+    insmod ./modules/8851bu.ko $KO8851_ARGS 2>> "$LOG"
+    _rc=$?
+    rm -f "$EXP8851_GUARD"; sync
+    vlog "8851: insmod 8851bu rc=$_rc"
+    [ $_rc = 0 ]
+}
 usb_reset() {   # $1 = device folder, $2 = why
     if echo 0 > "$1/authorized" 2>/dev/null; then
         sleep 2
@@ -403,14 +432,15 @@ usb_report() {
         _cls=; for _i in "$_d"/*:*/bInterfaceClass; do [ -f "$_i" ] && { read -r _c < "$_i"; _cls="$_cls$_c "; }; done
         case "$_cls" in *08*|*09*) continue ;; esac          # USB stick, hub: not a dongle
         _nm=; _mf=; read -r _nm < "$_d/product" 2>/dev/null; read -r _mf < "$_d/manufacturer" 2>/dev/null
-        case "$DONGLE_IDS" in
-            *" $_v:$_pr "*) _what="supported (RTL88x2BU, in the driver's list)" ;;
+        case "$DONGLE_IDS$ID8851" in
+            *" $_v:$_pr "*) case "$ID8851" in *" $_v:$_pr "*) _what="EXPERIMENTAL: RTL8851BU (AX900), driver 8851bu loaded for this chip only, not tested with the real dongle" ;; *) _what="supported (RTL88x2BU, in the driver's list)" ;; esac ;;
             *) case "$SAME_CHIP_IDS" in
                 *" $_v:$_pr "*) _what="same chip RTL88x2BU but NOT in the driver's list (can be added without a new driver)" ;;
                 *) case "$_v:$_pr" in
                     0bda:8812|0bda:881a|0bda:881b|0bda:881c) _what="other chip, probably RTL8812AU (needs another driver)" ;;
                     0bda:0811|0bda:0821|0bda:8822|0bda:a811) _what="other chip, probably RTL8811AU/8821AU (needs another driver)" ;;
                     0bda:c811|0bda:c820|0bda:c821|0bda:c82c) _what="other chip, probably RTL8821CU/8811CU (needs another driver)" ;;
+                    0bda:1a2b) _what="a Realtek dongle in its CD-ROM (driver installer) mode; this package cannot switch it to Wi-Fi mode" ;;
                     0e8d:*) _what="other chip, MediaTek (needs another driver)" ;;
                     *) case "$_cls" in *ff*|*e0*) _what="unknown device with a vendor-specific interface (maybe a Wi-Fi dongle, chip unknown)" ;; *) _what="not a Wi-Fi dongle" ;; esac ;;
                    esac ;;
@@ -436,11 +466,11 @@ wifi_sample() {
     [ $((up - wq_at)) -ge 5 ] || return 0
     wq_at=$up
     _any=
-    for _d in "$PROC"/net/rtl88x2bu/*; do [ -f "$_d/all_sta_info" ] && _any=1; done
+    for _d in "$PROC"/net/rtl88x2bu/* "$PROC"/net/rtl8851bu/*; do [ -f "$_d/all_sta_info" ] && _any=1; done
     [ -n "$_any" ] || return 0
     _v=$(
         echo "--- $(date) uptime ${up}s"
-        for _d in "$PROC"/net/rtl88x2bu/*; do
+        for _d in "$PROC"/net/rtl88x2bu/* "$PROC"/net/rtl8851bu/*; do
             [ -f "$_d/all_sta_info" ] || continue
             echo "[${_d##*/}] rx_signal:"; cat "$_d/rx_signal" 2>/dev/null
             echo "[${_d##*/}] all_sta_info:"; cat "$_d/all_sta_info" 2>/dev/null
@@ -525,6 +555,11 @@ nb_since=0; resets=0; last_reset=0; nr_since=0; dh_since=0; as_since=0; radio_tr
 drv_ok=0; chip_ok=0; was=; seen_up=0; plug_up=0; ev_host=0; ev_aa=0; kick2=0; tl_end=0
 if kernel_ok; then
     load_driver && drv_ok=1
+    # 4.13: a guard file left from the last run = the experimental 8851bu load never finished (the head unit restarted)
+    if [ -f "$EXP8851_GUARD" ]; then
+        mv -f "$EXP8851_GUARD" "$EXP8851_OFF" 2>/dev/null
+        vlog "FAIL: 8851: the experimental RTL8851BU driver did not finish loading last time - the head unit restarted while loading? Switched off. Reinstall the package to try again."
+    fi
 else
     # 4.12: firmware other than the tested one, with another kernel: no driver, no chip mark (KP would wait for a
     # Wi-Fi that can't come); logs and USB copies still work
@@ -535,6 +570,7 @@ fi
 while true; do
     [ $drv_ok != 0 ] || { load_driver && drv_ok=1; }
     [ $chip_ok != 0 ] || { mark_chip && chip_ok=1; }
+    [ $drv_ok = no ] || load_8851
     name_wlan0
     copy_logs
     if [ -d "$SYSNET/wlan0" ]; then now=wlan0; else now=none; fi
