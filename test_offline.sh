@@ -375,4 +375,9 @@ newcar t13; mkdir -p "$ROOT/storage/usb0"
 out=$(cd "$A" && ROOT=$ROOT KR_TEST_PATH=$W/bin:$PATH USBS=/storage/usb0 sh bin/status.sh 2>&1); sleep 2
 ok "status line + copying message" "echo \"\$out\" | grep -q 'USB Wi-Fi v4' && echo \"\$out\" | grep -q 'EV6_LOG'"
 ok "bundle folder with the state file on the stick" "ls -d $ROOT/storage/usb0/EV6_LOG_up* >/dev/null 2>&1 && [ -f \$(ls -d $ROOT/storage/usb0/EV6_LOG_up* | head -1)/01_state.txt ]"
+echo "== 27 4.14.1 stable release: built without the RTL8851BU driver (that stays in the pre-release)"
+SZ=$W/stable.zip; bash "$B/안정판_만들기.sh" "$SZ" > "$W/stable.out" 2>&1; mkdir -p "$W/stable"; (cd "$W/stable" && unzip -q "$SZ")
+ok "stable zip: no 8851bu.ko, no 8851 source, NOTICE and description don't name it, descriptor OK, rest the same" "! unzip -l \"$SZ\" | grep -q 8851 && ! grep -q 8851 $W/stable/NOTICE.txt $W/stable/NEMESIS.data && grep -q '^OK ' $W/stable.out && cmp -s $W/stable/svc/dongle.sh $P/svc/dongle.sh && cmp -s $W/stable/modules/88x2bu.ko $P/modules/88x2bu.ko && [ -f $W/stable/bin/done.jar ]"
+newcar t27; fake8851; rm -rf "$A"; cp -R "$W/stable" "$A"; runsvc >/dev/null 2>&1   # the stable package installed
+ok "stable build with an RTL8851BU plugged in: nothing loaded for it, says so (not a failure), 88x2bu as usual" "! grep -q 8851bu $ROOT/insmod.calls && grep -q '8851: RTL8851BU dongle found, but this build has no RTL8851BU driver' \$(L26) && ! grep -q 'FAIL: 8851' \$(L26) && grep -q 'usb: 1-2 0bda:b851.*not supported by this build' \$(L26) && grep -q '88x2bu.ko' $ROOT/insmod.calls"
 echo; echo "passed $pass, failed $fail"; [ $fail = 0 ]

@@ -203,7 +203,8 @@ load_8851() {
         vlog "8851: RTL8851BU dongle found, experimental driver is switched off ($EXP8851_OFF); reinstall the package to try again"
         return 0
     fi
-    [ -f ./modules/8851bu.ko ] || { vlog "FAIL: 8851: modules/8851bu.ko missing"; return 1; }
+    # 4.14.1: the stable release has no RTL8851BU driver (it stays in the pre-release)
+    [ -f ./modules/8851bu.ko ] || { vlog "8851: RTL8851BU dongle found, but this build has no RTL8851BU driver (stable release: only the pre-release has the experimental one)"; return 0; }
     echo "$(date) uptime $(uptime_s)s" > "$EXP8851_GUARD" 2>/dev/null; sync
     vlog "8851: RTL8851BU dongle found: loading the EXPERIMENTAL driver 8851bu (not tested with the real dongle)"
     insmod ./modules/8851bu.ko $KO8851_ARGS 2>> "$LOG"
@@ -387,7 +388,7 @@ usb_report() {
         case "$_cls" in *08*|*09*) continue ;; esac          # USB stick, hub: not a dongle
         _nm=; _mf=; read -r _nm < "$_d/product" 2>/dev/null; read -r _mf < "$_d/manufacturer" 2>/dev/null
         case "$DONGLE_IDS$ID8851" in
-            *" $_v:$_pr "*) case "$ID8851" in *" $_v:$_pr "*) _what="EXPERIMENTAL: RTL8851BU (AX900), driver 8851bu loaded for this chip only, not tested with the real dongle" ;; *) _what="supported (RTL88x2BU, in the driver's list)" ;; esac ;;
+            *" $_v:$_pr "*) case "$ID8851" in *" $_v:$_pr "*) if [ -f ./modules/8851bu.ko ]; then _what="EXPERIMENTAL: RTL8851BU (AX900), driver 8851bu loaded for this chip only, not tested with the real dongle"; else _what="RTL8851BU (AX900): not supported by this build (stable release; the experimental driver is in the pre-release)"; fi ;; *) _what="supported (RTL88x2BU, in the driver's list)" ;; esac ;;
             *) case "$SAME_CHIP_IDS" in
                 *" $_v:$_pr "*) _what="same chip RTL88x2BU but NOT in the driver's list (can be added without a new driver)" ;;
                 *) case "$_v:$_pr" in
