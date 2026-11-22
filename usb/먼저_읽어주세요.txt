@@ -9,7 +9,7 @@
             https://github.com/MANN1309/ev6-kr-usbwifi-dongle/releases/latest
 ==============================================================
 
-EV6 KR USB Wi-Fi 동글 시스템 4.12.0 - 설치 USB
+EV6 KR USB Wi-Fi 동글 시스템 {{VER}} - 설치 USB
 
 [중요] 면책 고지
 비공식 개인 프로젝트입니다. 현대자동차·기아·현대모비스와 관계없습니다.
@@ -17,7 +17,7 @@ EV6 KR USB Wi-Fi 동글 시스템 4.12.0 - 설치 USB
 사용자 본인에게 있습니다. 동의하지 않으면 설치하지 마세요. (설명서/1_면책고지.txt)
 
 1. USB에 넣는 방법
-   압축을 풀면 나오는 EV6-dongle-USB-v4.12.0 폴더 "안의 내용 전부"를
+   압축을 풀면 나오는 EV6-dongle-USB-v{{VER}} 폴더 "안의 내용 전부"를
    USB 메모리(FAT32 또는 exFAT) 맨 위에 그대로 복사합니다.
    USB를 열었을 때 바로 NEMESIS.data 와 packages 가 보여야 합니다. (폴더째 넣으면 NEMESIS가 찾지 못함)
    USB 맨 위가 아래처럼 보이면 됩니다.
@@ -36,9 +36,9 @@ EV6 KR USB Wi-Fi 동글 시스템 4.12.0 - 설치 USB
 
      [package.N]
      path=packages/usbwifi.hotspot.zip
-     name=USB WiFi dongle as built-in Wi-Fi (KR v4.12)
+     name=USB WiFi dongle as built-in Wi-Fi (KR v{{VER}})
      short-desc=Driver, wlan0, AA keep-connected, no popups, safe drop logs
-     published=2026-11-16
+     published={{DATE}}
 
 2. 설치 전에 확인
    - 차량: 기아 EV6 국내형(펌웨어 CVEV.KOR...), 내장 Wi-Fi 없음. 실차 확인은 CVEV.KOR.0000.V039.001.260902

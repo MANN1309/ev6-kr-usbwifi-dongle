@@ -4,6 +4,6 @@ type=list
 
 [package.0]
 path=packages/usbwifi.hotspot.zip
-name=USB WiFi dongle as built-in Wi-Fi (KR v4.14)
+name=USB WiFi dongle as built-in Wi-Fi (KR v{{VER}})
 short-desc=Driver, wlan0, AA keep-connected, no popups, safe drop logs
-published=2026-11-16
+published={{DATE}}
